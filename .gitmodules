@@ -1,0 +1,3 @@
+[submodule "src/Data/plan9port"]
+	path = src/Data/plan9port
+	url = https://github.com/9fans/plan9port
