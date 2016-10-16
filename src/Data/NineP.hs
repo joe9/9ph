@@ -1,385 +1,528 @@
-{-# LANGUAGE FlexibleInstances, TypeSynonymInstances #-}
+{-# LANGUAGE NoImplicitPrelude #-}
+
 -----------------------------------------------------------------------------
 -- |
 -- Module      : Data.NineP
 -- Copyright   : Tim Newsham
 -- License     : BSD3-style (see LICENSE)
--- 
+--
 -- Maintainer  : David Leimbach <leimy2k@gmail.com>
 -- Stability   : experimental
 -- Portability : Only tested on GHC 6.12.1, uses TypeSynonymInstances
 --
--- Module providing Binary serialization of 9P messages to and from lazy 
+-- Module providing Binary serialization of 9P messages to and from lazy
 -- ByteStrings.
--- 
--- This library does not currently provide any networking support or 
--- wrappers for easy to write clients or servers, though that may come 
+--
+-- This library does not currently provide any networking support or
+-- wrappers for easy to write clients or servers, though that may come
 -- with time as we decide the best way to implement these.
--- 
--- 9P2000 messages are sent in little endian byte order rather than network byte order 
+--
+-- 9P2000 messages are sent in little endian byte order rather than network byte order
 -- (big endian)
 --
 -- Lightly tested against an Inferno operating
 -- system share with no authentication successfully.
 -----------------------------------------------------------------------------
+module Data.NineP where
 
-module Data.NineP ( 
-                  -- * Bin - a little endian encode/decode class for Binary
-                   Bin(..)
-                  -- * Qid - Server side data type for path tracking (<http://9p.cat-v.org> for details)
-                  , Qid(..)
+-- * Bin - a little endian encode/decode class for Binary
+import           Control.Monad
+import           Data.ByteString (ByteString)
+import qualified Data.ByteString as BS
+import           Data.Serialize
+import qualified Data.Serialize  as DS
+import           Data.Word
+import           Protolude       hiding (get, put)
 
-                  -- * Stat - Namespace metadata /(somewhat like a unix fstat)/
-                  , Stat(..)
+import BitMask
 
-                  -- * Msg - envelope for 9P2000 messages
-                  , Msg(..)
-                       
-                  -- ** Tag - A message payload type
-                  , Tag(..)
+-- #define QTDIR		0x80		/* type bit for directories */
+-- #define QTAPPEND	0x40		/* type bit for append only files */
+-- #define QTEXCL		0x20		/* type bit for exclusive use files */
+-- #define QTMOUNT		0x10		/* type bit for mounted channel */
+-- #define QTAUTH		0x08		/* type bit for authentication file */
+-- #define QTTMP		0x04		/* type bit for non-backed-up file */
+-- #define QTSYMLINK	0x02		/* type bit for symbolic link */
+-- #define QTFILE		0x00		/* type bits for plain file */
+data QType
+  = File
+  | SymbolicLink
+  | NonBackedUpFile
+  | AuthenticationFile
+  | MountedChannel
+  | ExclusiveUseFile
+  | AppendOnlyFile
+  | Directory
+  deriving (Bounded, Enum, Eq, Show)
 
-                  -- ** VarMsg - A data type encapsulating the various 9P messages 
-                  , VarMsg(..)
-                          
-                  -- ** putVarMsg - function that can encode all VarMsg types to a lazy ByteString
-                  , putVarMsg
-
-                  -- ** getVarMsg - function to decode all VarMsg types from a lazy ByteString
-                  , getVarMsg
-
-                  -- * Example
-                  -- $example
-                  ) where
-import Control.Monad
-import Data.Binary.Get
-import Data.Binary.Put
-import Data.Char
-import Data.Word
-import qualified Data.ByteString.Lazy as L
-
-{-
-import Debug.Trace 
-tr msg n = trace (msg ++ show n) n
--- -}
-
--- Little-endian binary class
-class Bin a where
-    get :: Get a
-    put :: a -> Put
-
-instance Bin Word8 where
-    get = getWord8
-    put = putWord8
-
-instance Bin Word16 where
-    get = getWord16le
-    put = putWord16le
-
-instance Bin Word32 where
-    get = getWord32le
-    put = putWord32le
-
-instance Bin Word64 where
-    get = getWord64le
-    put = putWord64le
-
-instance Bin Char where
-    get = chr . fromIntegral <$> getWord8
-    put = putWord8 . fromIntegral . ord
-
-instance Bin String where
-    get = getWord16le >>= \n -> replicateM (fromIntegral n) get
-    put xs = putWord16le (fromIntegral $ length xs) >> mapM_ put xs
+instance ToBitMask QType
 
 -- | A Plan 9 Qid type.  See http://9p.cat-v.org for more information
-data Qid = Qid {
-    qid_typ :: Word8,
-    qid_vers :: Word32,
-    qid_path :: Word64 } deriving (Show, Eq)
+data Qid = Qid
+  { qType    :: ![QType] -- is a Word8 == uchar
+  , qversion :: !Word32
+  , qPath    :: !Word64
+  } deriving (Show, Eq)
 
--- Instnace of Bin for Qid.
-instance Bin Qid where
-    get = Qid <$> get <*> get <*> get
-    put (Qid t v p) = put t >> put v >> put p
-
--- | Takes a fixed size lazy ByteString @sz@, running @g@ on it, and returning the result if all the input is consumed, uses @Prelude.error@ otherwise. (Throws an exception)
-getNest :: Integral n => n -> Get a -> Get a
-getNest sz g = do
-    b <- getLazyByteString (fromIntegral sz)
-    return $ flip runGet b $ do
-        x <- g
-        e <- isEmpty
-        if e
-          then return x
-          else do
-              remain <- getRemainingLazyByteString
-              error $ show (L.length remain) ++ " extra bytes in nested structure"
+instance Serialize Qid where
+  get =
+    fmap (Qid . fromBitMask . fromIntegral) getWord8 <*> getWord32le <*>
+    getWord64le
+  put (Qid t v p) =
+    (putWord8 . (fromIntegral :: Word32 -> Word8) . toBitMask) t >>
+    putWord32le v >>
+    putWord64le p
 
 -- | Provides information on a path entry at a 9P2000 server
-data Stat = Stat {
-    st_typ :: Word16,
-    st_dev :: Word32,
-    st_qid :: Qid,
-    st_mode :: Word32,
-    st_atime :: Word32,
-    st_mtime :: Word32,
-    st_length :: Word64,
-    st_name :: String,
-    st_uid :: String,
-    st_gid :: String,
-    st_muid :: String } deriving (Show, Eq)
+data Stat = Stat
+  { stTyp    :: !Word16
+  , stDev    :: !Word32
+  , stQid    :: !Qid
+  , stMode   :: !Word32
+  , stAtime  :: !Word32
+  , stMtime  :: !Word32
+  , stLength :: !Word64
+  , stName   :: !ByteString
+  , stUid    :: !ByteString
+  , stGid    :: !ByteString
+  , stMuid   :: !ByteString
+  } deriving (Show, Eq)
 
-instance Bin Stat where
-    get = do
-        n <- getWord16le
-        getNest n g
-      where g = Stat <$> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get <*> get
-    put (Stat a b c d e f g h i j k) = do
-        let buf = runPut p
-        putWord16le $ fromIntegral $ L.length buf
-        putLazyByteString buf
-      where p  = put a >> put b >> put c >> put d >> put e >> put f >> put g >> put h >> put i >> put j >> put k
+instance Serialize Stat where
+  get = do
+    typ <- getWord16le
+    dev <- getWord32le
+    qid <- get
+    mode <- getWord32le
+    atime <- getWord32le
+    mtime <- getWord32le
+    len <- getWord64le
+    name <- getVariableByteString
+    uid <- getVariableByteString
+    gid <- getVariableByteString
+    muid <- getVariableByteString
+    return (Stat typ dev qid mode atime mtime len name uid gid muid)
+  put (Stat typ dev qid mode atime mtime len name uid gid muid) =
+    putWord16le typ >> putWord32le dev >> put qid >> putWord32le mode >>
+    putWord32le atime >>
+    putWord32le mtime >>
+    putWord64le len >>
+    putVariableByteString name >>
+    putVariableByteString uid >>
+    putVariableByteString gid >>
+    putVariableByteString muid
 
--- | A variable message type that encapsulates the valid kinds of messages in a 9P2000 payload
-data VarMsg = 
-    Tversion {
-        tv_msize :: Word32,
-        tv_version :: String }
-    | Rversion {
-        rv_msize :: Word32,
-        rv_version :: String }
-    | Tauth {
-        tau_afid :: Word32,
-        tau_uname :: String,
-        tau_aname :: String }
-    | Rauth { ra_aqid :: Qid }
-    | Rerror { re_ename :: String }
-    | Tflush { tf_oldtag :: Word16 }
-    | Rflush 
-    | Tattach {
-        tat_fid :: Word32,
-        tat_afid :: Word32,
-        tat_uname :: String,
-        tat_aname :: String }
-    | Rattach { rat_qid :: Qid }
-    | Twalk {
-        tw_fid :: Word32,
-        tw_newfid :: Word32,
-        tw_wnames :: [String] }
-    | Rwalk { rw_wqid :: [Qid] }
-    | Topen {
-        to_fid :: Word32,
-        to_mode :: Word8 }
-    | Ropen {
-        ro_qid :: Qid,
-        ro_iounit :: Word32 }
-    | Tcreate { 
-        tcr_fid :: Word32,
-        tcr_name :: String,
-        tcr_perm :: Word32,
-        tcr_mode :: Word8 }
-    | Rcreate {
-        rcr_qid :: Qid,
-        rcr_iounit :: Word32 }
-    | Tread {
-        trd_fid :: Word32,
-        trd_offset :: Word64,
-        trd_count :: Word32 }
-    | Rread { rrd_dat :: L.ByteString }
-    | Twrite {
-        twr_fid :: Word32,
-        twr_offset :: Word64,
-        twr_dat :: L.ByteString }
-    | Rwrite { rw_count :: Word32 }
-    | Tclunk { tcl_fid :: Word32 }
-    | Rclunk
-    | Tremove { trm_fid :: Word32 }
-    | Rremove
-    | Tstat { ts_fid :: Word32 }
-    | Rstat { rs_stat :: [Stat] }
-    | Twstat {
-        tws_fid :: Word32,
-        tws_stat :: [Stat] }
-    | Rwstat
-    deriving (Show, Eq)
+data Rversion = Rversion
+  { rvMaxMessageSize :: Word32
+  , rvVersion        :: !ByteString
+  }
 
+-- size[4] Rversion tag[2] msize[4] version[s]
+instance Serialize Rversion where
+  get = do
+    maxMessageSize <- getWord32le
+    size <- getWord16le
+    version <- getByteString (fromIntegral size)
+    return (Rversion maxMessageSize version)
+  put (Rversion ms v) = putWord32le ms >> putVariableByteString v
 
--- | A type that enumerates all the valid /(and one invalid)/ message types in 9P2000
-data Tag = TTversion | TRversion | TTauth | TRauth | TTattach | TRattach
-    | XXX_TTerror | TRerror | TTflush | TRflush 
-    | TTwalk | TRwalk | TTopen | TRopen 
-    | TTcreate | TRcreate | TTread | TRread | TTwrite | TRwrite
-    | TTclunk | TRclunk | TTremove | TRremove | TTstat | TRstat 
-    | TTwstat | TRwstat
-    deriving (Show, Eq, Ord, Enum)
+putVariableByteString :: ByteString -> PutM ()
+putVariableByteString s =
+  (putWord16le . fromIntegral . BS.length) s >> putByteString s
 
-instance Bin Tag where
-    get = do
-        n <- getWord8
-        return $ if n >= 100 && n < 128 && n /= 106 -- 106 == _tTerror
-                    then toEnum $ fromEnum (n-100)
-                    else error $ "invalid tag: " ++ (show n)
-    put = putWord8 . toEnum . (+ 100) . fromEnum
+getVariableByteString :: Get ByteString
+getVariableByteString = getWord16le >>= getByteString . fromIntegral >>= return
 
--- | A monadic action in Get that returns all parseable entries as a list, returning [] if none exist
-getListAll :: (Bin a) => Get [a]
-getListAll = do
-    e <- isEmpty 
-    if e 
-      then return [] 
-      else (:) <$> get <*> getListAll
+data Tversion = Tversion
+  { tvMaxMesageSize :: !Word32
+  , tvVersion       :: !ByteString
+  }
 
--- | A monadic action in Put that maps all encodable items into the Put monad for serialization
-putListAll :: (Bin a) => [a] -> Put
-putListAll = mapM_ put
+-- size[4] Tversion tag[2] msize[4] version[s]
+instance Serialize Tversion where
+  get = do
+    maxMessageSize <- getWord32le
+    size <- getWord16le
+    version <- getByteString (fromIntegral size)
+    return (Tversion maxMessageSize version)
+  put (Tversion s v) = putWord32le s >> putVariableByteString v
 
--- | Like 'getNest' but is preceded by a little endian 16bit word.  Useful for retrieving 16bit payload lengths from 9P2000 messages that support it.
-getNestList16 :: (Bin a) => Get [a]
-getNestList16 = do
-    n <- getWord16le
-    getNest n getListAll
+data Tattach = Tattach
+  { taFid   :: !Word32
+  , taAfid  :: !Word32
+  , taUname :: !ByteString
+  , taAname :: !ByteString
+  }
 
--- | Runs 'putListAll' over @xs@ followed by computing the 16bit (little endian) length of the list, and prepending it to the final payload.  Useful for automatically computing lengths for 9P2000 messages that require it
-putNestList16 :: Bin a => [a] -> Put
-putNestList16 xs = do
-    let buf = runPut (putListAll xs)
-    putWord16le $ fromIntegral $ L.length buf
-    putLazyByteString buf
+-- size[4] Tattach tag[2] fid[4] afid[4] uname[s] aname[s]
+instance Serialize Tattach where
+  get = do
+    fid <- getWord32le
+    afid <- getWord32le
+    uname <- getVariableByteString
+    aname <- getVariableByteString
+    return (Tattach fid afid uname aname)
+  put (Tattach f af u a) =
+    putWord32le f >> putWord32le af >> putVariableByteString u >>
+    putVariableByteString a
 
--- | Gets a 16bit value from the stream, then executes @Data.Binary.Get.get@ that many times to produce a list of parsed values.
-getList16 :: Bin a => Get [a]
-getList16 = getWord16le >>= \n -> replicateM (fromIntegral n) get
+data Rattach = Rattach
+  { raQid :: !Qid
+  }
 
--- | Puts @xs@ into the Put stream prepended by its length.
-putList16 :: Bin a => [a] -> Put
-putList16 xs = putWord16le (fromIntegral $ length xs) >> mapM_ put xs
+instance Serialize Rattach where
+  get = fmap Rattach DS.get
+  put = DS.put . raQid
 
--- | Gets a 32bit little endian legnth from the stream, then gets a lazy ByteString of that size from the stream, returning only the ByteString
-getBytes32 :: Get L.ByteString
-getBytes32 = getWord32le >>= getLazyByteString . fromIntegral
+data Rerror = Rerror
+  { reEname :: !ByteString
+  }
 
--- | Takes length of @xs@ and then prepends that to the lazy ByteString it places in the Stream
-putBytes32 :: L.ByteString -> Put
-putBytes32 xs = putWord32le (fromIntegral $ L.length xs) >> putLazyByteString xs
+-- size[4] Rerror tag[2] ename[s]
+instance Serialize Rerror where
+  get = fmap Rerror getVariableByteString
+  put = putVariableByteString . reEname
 
--- | Convertss VarMsg types to Tag values
-getTag :: VarMsg -> Tag
-getTag (Tversion _ _) = TTversion
-getTag (Rversion _ _) = TRversion
-getTag (Tauth _ _ _) = TTauth
-getTag (Rauth _) = TRauth
-getTag (Tflush _) = TTflush
-getTag (Rflush) = TRflush
-getTag (Tattach _ _ _ _) = TTattach
-getTag (Rattach _) = TRattach
-getTag (Rerror _) = TRerror
-getTag (Twalk _ _ _) = TTwalk
-getTag (Rwalk _) = TRwalk
-getTag (Topen _ _) = TTopen
-getTag (Ropen _ _) = TRopen
-getTag (Tcreate _ _ _ _) = TTcreate
-getTag (Rcreate _ _) = TRcreate
-getTag (Tread _ _ _) = TTread
-getTag (Rread _) = TRread
-getTag (Twrite _ _ _) = TTwrite
-getTag (Rwrite _) = TRwrite
-getTag (Tclunk _) = TTclunk
-getTag (Rclunk) = TRclunk
-getTag (Tremove _) = TTremove
-getTag (Rremove) = TRremove
-getTag (Tstat _) = TTstat
-getTag (Rstat _) = TRstat
-getTag (Twstat _ _) = TTwstat
-getTag (Rwstat) = TRwstat
+data Tauth = Tauth
+  { tauAfid  :: !Word32
+  , tauUname :: !ByteString
+  , tauAname :: !ByteString
+  }
 
--- | For every messages type, runs a Get parser to decode that type of payload from the 9P2000 stream
-getVarMsg :: Tag -> Get VarMsg
-getVarMsg TTversion = Tversion <$> get <*> get
-getVarMsg TRversion = Rversion <$> get <*> get
-getVarMsg TTauth = Tauth <$> get <*> get <*> get
-getVarMsg TRauth = Rauth <$> get
-getVarMsg XXX_TTerror = error "there is no Terror"
-getVarMsg TRerror = Rerror <$> get
-getVarMsg TTflush = Tflush <$> get
-getVarMsg TRflush = return Rflush
-getVarMsg TTattach = Tattach <$> get <*> get <*> get <*> get
-getVarMsg TRattach = Rattach <$> get
-getVarMsg TTwalk = Twalk <$> get <*> get <*> getList16
-getVarMsg TRwalk = Rwalk <$> getList16
-getVarMsg TTopen = Topen <$> get <*> get
-getVarMsg TRopen = Ropen <$> get <*> get
-getVarMsg TTcreate = Tcreate <$> get <*> get <*> get <*> get
-getVarMsg TRcreate = Rcreate <$> get <*> get
-getVarMsg TTread = Tread <$> get <*> get <*> get
-getVarMsg TRread = Rread <$> getBytes32
-getVarMsg TTwrite = Twrite <$> get <*> get <*> getBytes32
-getVarMsg TRwrite = Rwrite <$> get
-getVarMsg TTclunk = Tclunk <$> get
-getVarMsg TRclunk = return Rclunk
-getVarMsg TTremove = Tremove <$> get
-getVarMsg TRremove = return Rremove
-getVarMsg TTstat = Tstat <$> get
-getVarMsg TRstat = Rstat <$> getNestList16
-getVarMsg TTwstat = Twstat <$> get <*> getNestList16
-getVarMsg TRwstat = return Rwstat
+-- size[4] Tauth tag[2] afid[4] uname[s] aname[s]
+instance Serialize Tauth where
+  get = do
+    afid <- getWord32le
+    uname <- getVariableByteString
+    aname <- getVariableByteString
+    return (Tauth afid uname aname)
+  put (Tauth af u a) =
+    putWord32le af >> putVariableByteString u >> putVariableByteString a
 
--- | For every lower level VarMsg type, encodes a full wrapper around that type for use with 9P2000 streams
-putVarMsg :: VarMsg -> Put
-putVarMsg (Tversion a b) = put a >> put b
-putVarMsg (Rversion a b) = put a >> put b
-putVarMsg (Tauth a b c) = put a >> put b >> put c
-putVarMsg (Rauth a) = put a
-putVarMsg (Rerror a) = put a
-putVarMsg (Tflush a) = put a
-putVarMsg (Rflush) = return ()
-putVarMsg (Tattach a b c d) = put a >> put b >> put c >> put d
-putVarMsg (Rattach a) = put a
-putVarMsg (Twalk a b c) = put a >> put b >> putList16 c
-putVarMsg (Rwalk a) = putList16 a
-putVarMsg (Topen a b) = put a >> put b
-putVarMsg (Ropen a b) = put a >> put b
-putVarMsg (Tcreate a b c d) = put a >> put b >> put c >> put d
-putVarMsg (Rcreate a b) = put a >> put b
-putVarMsg (Tread a b c) = put a >> put b >> put c
-putVarMsg (Rread a) = putBytes32 a
-putVarMsg (Twrite a b c) = put a >> put b >> putBytes32 c
-putVarMsg (Rwrite a) = put a
-putVarMsg (Tclunk a) = put a
-putVarMsg (Rclunk) = return ()
-putVarMsg (Tremove a) = put a
-putVarMsg (Rremove) = return ()
-putVarMsg (Tstat a) = put a
-putVarMsg (Rstat a) = putNestList16 a
-putVarMsg (Twstat a b) = put a >> putNestList16 b
-putVarMsg (Rwstat) = return ()
+data Rauth = Rauth
+  { raAqid :: !Qid
+  }
+
+instance Serialize Rauth where
+  get = fmap Rauth DS.get
+  put = DS.put . raAqid
+
+data Tflush = Tflush
+  { tfOldtag :: !Word16
+  }
+
+instance Serialize Tflush where
+  get = fmap Tflush getWord16le
+  put = putWord16le . tfOldtag
+
+data Rflush =
+  Rflush
+
+data Twalk = Twalk
+  { twFid    :: !Word32
+  , twNewfid :: !Word32
+  , twWnames :: ![ByteString]
+  }
+
+--   size[4] Twalk tag[2] fid[4] newfid[4] nwname[2] nwname*(wname[s])
+instance Serialize Twalk where
+  get = do
+    fid <- getWord32le
+    newfid <- getWord32le
+    numberOfWalkNames <- getWord16le
+    anames <- replicateM (fromIntegral numberOfWalkNames) getVariableByteString
+    return (Twalk fid newfid anames)
+  put (Twalk f nf names) =
+    putWord32le f >> putWord32le nf >>
+    (putWord16le . fromIntegral . length) names >>
+    mapM_ putVariableByteString names
+
+data Rwalk = Rwalk
+  { rwWqid :: ![Qid]
+  }
+
+--    size[4] Rwalk tag[2] nwqid[2] nwqid*(qid[13])
+instance Serialize Rwalk where
+  get = fmap Rwalk DS.get
+  put (Rwalk qids) =
+    (putWord16le . fromIntegral . length) qids >> mapM_ DS.put qids
+
+data Topen = Topen
+  { toFid  :: !Word32
+  , toMode :: !Word8
+  }
+
+instance Serialize Topen where
+  get = fmap Topen getWord32le <*> getWord8
+  put (Topen f m) = putWord32le f >> putWord8 m
+
+data Ropen = Ropen
+  { roQid    :: !Qid
+  , roIounit :: !Word32
+  }
+
+instance Serialize Ropen where
+  get = fmap Ropen DS.get <*> getWord32le
+  put (Ropen q m) = DS.put q >> putWord32le m
+
+data Tcreate = Tcreate
+  { tcrFid  :: !Word32
+  , tcrName :: !ByteString
+  , tcrPerm :: !Word32
+  , tcrMode :: !Word8
+  }
+
+-- size[4] Tcreate tag[2] fid[4] name[s] perm[4] mode[1]
+instance Serialize Tcreate where
+  get = do
+    fid <- getWord32le
+    name <- getVariableByteString
+    perm <- getWord32le
+    mode <- getWord8
+    return (Tcreate fid name perm mode)
+  put (Tcreate f n p m) =
+    putWord32le f >> putVariableByteString n >> putWord32le p >> putWord8 m
+
+data Rcreate = Rcreate
+  { rcrQid    :: !Qid
+  , rcrIounit :: !Word32
+  }
+
+instance Serialize Rcreate where
+  get = fmap Rcreate DS.get <*> getWord32le
+  put (Rcreate q m) = DS.put q >> putWord32le m
+
+data Tread = Tread
+  { trdFid    :: !Word32
+  , trdOffset :: !Word64
+  , trdCount  :: !Word32
+  }
+
+instance Serialize Tread where
+  get = fmap Tread getWord32le <*> getWord64le <*> getWord32le
+  put (Tread f o c) = putWord32le f >> putWord64le o >> putWord32le c
+
+data Rread = Rread
+  { rrdDat :: !ByteString
+  }
+
+--    size[4] Rread tag[2] count[4] data[count]
+instance Serialize Rread where
+  get = do
+    dataCount <- getWord32le
+    datas <- getByteString (fromIntegral dataCount)
+    return (Rread datas)
+  put (Rread d) = (putWord32le . fromIntegral . BS.length) d >> putByteString d
+
+data Twrite = Twrite
+  { twrFid    :: !Word32
+  , twrOffset :: !Word64
+  , twrDat    :: !ByteString
+  }
+
+-- size[4] Twrite tag[2] fid[4] offset[8] count[4] data[count]
+instance Serialize Twrite where
+  get = do
+    fid <- getWord32le
+    offset <- getWord64le
+    dataCount <- getWord32le
+    datas <- getByteString (fromIntegral dataCount)
+    return (Twrite fid offset datas)
+  put (Twrite f o d) =
+    putWord32le f >> putWord64le o >> (putWord32le . fromIntegral . BS.length) d >>
+    putByteString d
+
+data Rwrite = Rwrite
+  { rwCount :: !Word32
+  }
+
+instance Serialize Rwrite where
+  get = fmap Rwrite getWord32le
+  put = putWord32le . rwCount
+
+data Tclunk = Tclunk
+  { tclFid :: !Word32
+  }
+
+instance Serialize Tclunk where
+  get = fmap Tclunk getWord32le
+  put = putWord32le . tclFid
+
+data Rclunk =
+  Rclunk
+
+data Tremove = Tremove
+  { trmFid :: !Word32
+  }
+
+instance Serialize Tremove where
+  get = fmap Tremove getWord32le
+  put = putWord32le . trmFid
+
+data Rremove =
+  Rremove
+
+data Tstat = Tstat
+  { tsFid :: !Word32
+  }
+
+instance Serialize Tstat where
+  get = fmap Tstat getWord32le
+  put = putWord32le . tsFid
+
+data Rstat = Rstat
+  { rsStat :: !Stat
+  }
+
+--    size[4] Rstat tag[2] stat[n]
+instance Serialize Rstat where
+  get = fmap Rstat get
+  put = put . rsStat
+
+data Twstat = Twstat
+  { twsFid  :: !Word32
+  , twsStat :: !Stat
+  }
+
+--    size[4] Rstat tag[2] stat[n]
+instance Serialize Twstat where
+  get = fmap Twstat getWord32le <*> get
+  put (Twstat f s) = putWord32le f >> put s
+
+data Rwstat =
+  Rwstat
+  deriving (Show, Eq)
 
 -- | The message envelope type for all 9P2000 messages
-data Msg = Msg {
-    msg_typ :: Tag,
-    msg_tag :: Word16,
-    msg_body :: VarMsg } deriving(Show, Eq)
+data Msg = Msg
+  { msgTyp  :: !Tag
+  , msgTag  :: !Word16
+  , msgBody :: ByteString
+  } deriving (Show, Eq)
 
--- | An arbitrarily chosen maxiumum size for any Msg
-maxSize :: Word32
-maxSize = 1024 * 1024 -- XXX arbitrary, configured?
+-- | A variable message type that encapsulates the valid kinds of messages in a 9P2000 payload
+-- | A type that enumerates all the valid /(and one invalid)/ message types in 9P2000
+data Tag
+  = TTversion
+  | TRversion
+  | TTauth
+  | TRauth
+  | TTattach
+  | TRattach
+  | XXXTTerror
+  | TRerror
+  | TTflush
+  | TRflush
+  | TTwalk
+  | TRwalk
+  | TTopen
+  | TRopen
+  | TTcreate
+  | TRcreate
+  | TTread
+  | TRread
+  | TTwrite
+  | TRwrite
+  | TTclunk
+  | TRclunk
+  | TTremove
+  | TRremove
+  | TTstat
+  | TRstat
+  | TTwstat
+  | TRwstat
+  deriving (Show, Eq, Ord, Enum)
 
-instance Bin Msg where
-    get = do
-        sz <- getWord32le
-        if sz < 4 || sz > maxSize
-          then return $ error $ "Invalid size: " ++ show sz
-          else getNest (sz - 4) $ do
-              typ <- get
-              tag <- getWord16le
-              body <- getVarMsg typ
-              return $ Msg typ tag body
-    put (Msg _ tag body) = do
-        let typ = getTag body
-            buf = runPut (put typ >> put tag >> putVarMsg body)
-        putWord32le $ fromIntegral $ L.length buf + 4
-        putLazyByteString buf
-
-
+--
+-- getTag (Tversion  ) = TTversion
+-- getTag (Rversion  ) = TRversion
+-- getTag (Tauth   ) = TTauth
+-- getTag (Rauth ) = TRauth
+-- getTag (Tflush ) = TTflush
+-- getTag (Rflush) = TRflush
+-- getTag (Tattach    ) = TTattach
+-- getTag (Rattach ) = TRattach
+-- getTag (Rerror ) = TRerror
+-- getTag (Twalk   ) = TTwalk
+-- getTag (Rwalk ) = TRwalk
+-- getTag (Topen  ) = TTopen
+-- getTag (Ropen  ) = TRopen
+-- getTag (Tcreate    ) = TTcreate
+-- getTag (Rcreate  ) = TRcreate
+-- getTag (Tread   ) = TTread
+-- getTag (Rread ) = TRread
+-- getTag (Twrite   ) = TTwrite
+-- getTag (Rwrite ) = TRwrite
+-- getTag (Tclunk ) = TTclunk
+-- getTag (Rclunk) = TRclunk
+-- getTag (Tremove ) = TTremove
+-- getTag (Rremove) = TRremove
+-- getTag (Tstat ) = TTstat
+-- getTag (Rstat ) = TRstat
+-- getTag (Twstat  ) = TTwstat
+-- getTag (Rwstat) = TRwstat
+-- -- | For every messages type, runs a Get parser to decode that type of payload from the 9P2000 stream
+-- getVarMsg :: !Tag -> Get VarMsg
+-- getVarMsg = undefined
+-- getVarMsg TTversion = Tversion <$> get <*> get
+-- -- getVarMsg TRversion = Rversion <$> get <*> get
+-- getVarMsg TTauth = Tauth <$> get <*> get <*> get
+-- getVarMsg TRauth = Rauth <$> get
+-- getVarMsg XXXTTerror = error "there is no Terror"
+-- getVarMsg TRerror = Rerror <$> get
+-- getVarMsg TTflush = Tflush <$> get
+-- getVarMsg TRflush = return Rflush
+-- getVarMsg TTattach = Tattach <$> get <*> get <*> get <*> get
+-- getVarMsg TRattach = Rattach <$> get
+-- getVarMsg TTwalk = Twalk <$> get <*> get <*> getList16
+-- getVarMsg TRwalk = Rwalk <$> getList16
+-- getVarMsg TTopen = Topen <$> get <*> get
+-- getVarMsg TRopen = Ropen <$> get <*> get
+-- getVarMsg TTcreate = Tcreate <$> get <*> get <*> get <*> get
+-- getVarMsg TRcreate = Rcreate <$> get <*> get
+-- getVarMsg TTread = Tread <$> get <*> get <*> get
+-- getVarMsg TRread = Rread <$> getBytes32
+-- getVarMsg TTwrite = Twrite <$> get <*> get <*> getBytes32
+-- getVarMsg TRwrite = Rwrite <$> get
+-- getVarMsg TTclunk = Tclunk <$> get
+-- getVarMsg TRclunk = return Rclunk
+-- getVarMsg TTremove = Tremove <$> get
+-- getVarMsg TRremove = return Rremove
+-- getVarMsg TTstat = Tstat <$> get
+-- getVarMsg TRstat = Rstat <$> getNestList16
+-- getVarMsg TTwstat = Twstat <$> get <*> getNestList16
+-- getVarMsg TRwstat = return Rwstat
+-- -- | For every lower level VarMsg type, encodes a full wrapper around that type for use with 9P2000 streams
+-- putVarMsg :: !VarMsg -> Put
+-- putVarMsg = undefined
+-- putVarMsg (Tversion a b) = put a >> put b
+-- -- putVarMsg (Rversion a b) = put a >> put b
+-- putVarMsg (Tauth a b c) = put a >> put b >> put c
+-- putVarMsg (Rauth a) = put a
+-- putVarMsg (Rerror a) = put a
+-- putVarMsg (Tflush a) = put a
+-- putVarMsg (Rflush) = return ()
+-- putVarMsg (Tattach a b c d) = put a >> put b >> put c >> put d
+-- putVarMsg (Rattach a) = put a
+-- putVarMsg (Twalk a b c) = put a >> put b >> putList16 c
+-- putVarMsg (Rwalk a) = putList16 a
+-- putVarMsg (Topen a b) = put a >> put b
+-- putVarMsg (Ropen a b) = put a >> put b
+-- putVarMsg (Tcreate a b c d) = put a >> put b >> put c >> put d
+-- putVarMsg (Rcreate a b) = put a >> put b
+-- putVarMsg (Tread a b c) = put a >> put b >> put c
+-- putVarMsg (Rread a) = putBytes32 a
+-- putVarMsg (Twrite a b c) = put a >> put b >> putBytes32 c
+-- putVarMsg (Rwrite a) = put a
+-- putVarMsg (Tclunk a) = put a
+-- putVarMsg (Rclunk) = return ()
+-- putVarMsg (Tremove a) = put a
+-- putVarMsg (Rremove) = return ()
+-- putVarMsg (Tstat a) = put a
+-- putVarMsg (Rstat a) = putNestList16 a
+-- putVarMsg (Twstat a b) = put a >> putNestList16 b
+-- putVarMsg (Rwstat) = return ()
+--
 -- --------------------------------------------------------------------
 -- $example
 --
@@ -397,15 +540,15 @@ instance Bin Msg where
 -- > import Data.Binary.Put
 -- > import Debug.Trace
 -- > import Data.NineP
--- > 
--- > connector :: IO Socket 
+-- >
+-- > connector :: !IO Socket
 -- > connector = withSocketsDo $
 -- >             do
 -- >               ainfo <- getAddrInfo Nothing (Just "127.0.0.1") (Just "6872")
 -- >               let a = head ainfo
--- >               sock <- socket AF_INET Stream defaultProtocol
+-- >               sock <- socket AFINET Stream defaultProtocol
 --
--- At this point we've just created our socket to a machine on 127.0.0.1:6872 
+-- At this point we've just created our socket to a machine on 127.0.0.1:6872
 -- where we'd expect to see a 9P2000 server.
 --
 -- >               putStrLn "Trying to connect"
@@ -413,7 +556,7 @@ instance Bin Msg where
 -- >               putStrLn "connected!"
 --
 -- The socket is connected at this point, build up a TVersion message, asking
--- to speak to the server with the 9P2000 protocol. 
+-- to speak to the server with the 9P2000 protocol.
 --
 -- The 1024 tells the server the maximum message size we'd like to support.
 --
@@ -424,10 +567,10 @@ instance Bin Msg where
 -- Bin class instance /Msg/, and the serialization is handled by runPut.
 -- We send this data to the socket.
 --
--- >               send sock $ runPut (put version) 
+-- >               send sock $ runPut (put version)
 -- >               putStrLn "Getting response"
 --
--- Now wait for a response from the server, evaluated runGet over it to 
+-- Now wait for a response from the server, evaluated runGet over it to
 -- de-serialize it, and show it.
 --
 -- >               msg <- recv sock 50

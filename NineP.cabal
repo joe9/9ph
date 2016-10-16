@@ -1,5 +1,5 @@
 name:		NineP
-version:	0.0.2.1
+version:	0.0.2.3
 license:	BSD3
 license-file:	LICENSE
 author:		Tim Newsham <newsham@lava.net>, Dave Leimbach <leimy2k@gmail.com>, Sergey Alirzaev <zl29ah@gmail.com>
@@ -8,30 +8,36 @@ stability:	Experimental
 homepage:	https://github.com/l29ah/9ph
 synopsis:	9P2000 in pure Haskell
 category:	Data
-description:	Pure Haskell implementation of the 9P2000 protocol from the 
-		Plan 9 and Inferno operating systems.  Many implementations of
-		9P2000 exist including the Linux kernel v9fs module, wmii 
-		(X window manager).  More information on 9P and implementations
-		may be found at http:\/\/9p.cat-v.org
+description:	Pure Haskell implementation of the 9P2000 protocol from the
+                Plan 9 and Inferno operating systems.  Many implementations of
+                9P2000 exist including the Linux kernel v9fs module, wmii
+                (X window manager).  More information on 9P and implementations
+                may be found at http:\/\/9p.cat-v.org
 build-type:	Simple
 cabal-version:	>= 1.8.0.2
 tested-with:	GHC == 7.10.2
 
 source-repository head
     type:       git
-    location:   https://github.com/l29ah/9ph/
+    location:   https://github.com/joe9/9ph/
 
 source-repository this
     type:       git
-    location:   https://github.com/l29ah/9ph/
+    location:   https://github.com/joe9/9ph/
     tag:        0.0.2.1
 
 flag bytestring-in-base
 
 library
-    build-depends: base >= 3, bytestring >= 0.9, binary >= 0.5.0.2
-
+    build-depends: base
+                 , bytestring
+                 , binary
+                 , text
+                 , protolude
+                 , bitmask
+                 , cereal
     hs-source-dirs:   src
     exposed-modules:  Data.NineP
+    extensions: NoImplicitPrelude
 
     ghc-options:      -O2 -Wall
