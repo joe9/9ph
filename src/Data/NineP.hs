@@ -433,6 +433,9 @@ instance Serialize Tclunk where
 data Rclunk =
   Rclunk
 
+instance ToNinePFormat Rclunk where
+  toNinePFormat = toNinePNullDataByteString MT.Rclunk
+
 data Tremove = Tremove
   { trmFid :: !Word32
   }
@@ -443,6 +446,9 @@ instance Serialize Tremove where
 
 data Rremove =
   Rremove
+
+instance ToNinePFormat Rremove where
+  toNinePFormat = toNinePNullDataByteString MT.Rremove
 
 data Tstat = Tstat
   { tsFid :: !Word32
