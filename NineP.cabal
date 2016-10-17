@@ -36,6 +36,7 @@ library
                  , protolude
                  , bitmask
                  , cereal
+                 , bimap
     hs-source-dirs:   src
     exposed-modules:  Data.NineP
     extensions: NoImplicitPrelude

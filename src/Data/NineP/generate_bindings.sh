@@ -27,7 +27,7 @@ echo ""
 echo "#include \"${input}\""
 echo ""
 
-expand --tabs=4 plan9port/include/libc.h |
+expand --tabs=4 "${input}" |
     sed --expression='1,/DIRMAX/d;/RFMEM/,$d' |
     sed --expression="s,^/,-- /," --expression="s/\(^#define \(\S*\) .*\)/-- \1\npattern \2 :: Constant\npattern \2 = MkConstant #{const \2} /"
 

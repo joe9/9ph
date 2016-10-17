@@ -36,6 +36,7 @@ import           Protolude       hiding (get, put)
 
 import BitMask
 
+-- import qualified Data.NineP.MessageTypes as MT
 -- #define QTDIR		0x80		/* type bit for directories */
 -- #define QTAPPEND	0x40		/* type bit for append only files */
 -- #define QTEXCL		0x20		/* type bit for exclusive use files */
@@ -392,47 +393,46 @@ instance Serialize Twstat where
 data Rwstat =
   Rwstat
   deriving (Show, Eq)
-
--- | The message envelope type for all 9P2000 messages
-data Msg = Msg
-  { msgTyp  :: !Tag
-  , msgTag  :: !Word16
-  , msgBody :: ByteString
-  } deriving (Show, Eq)
-
--- | A variable message type that encapsulates the valid kinds of messages in a 9P2000 payload
--- | A type that enumerates all the valid /(and one invalid)/ message types in 9P2000
-data Tag
-  = TTversion
-  | TRversion
-  | TTauth
-  | TRauth
-  | TTattach
-  | TRattach
-  | XXXTTerror
-  | TRerror
-  | TTflush
-  | TRflush
-  | TTwalk
-  | TRwalk
-  | TTopen
-  | TRopen
-  | TTcreate
-  | TRcreate
-  | TTread
-  | TRread
-  | TTwrite
-  | TRwrite
-  | TTclunk
-  | TRclunk
-  | TTremove
-  | TRremove
-  | TTstat
-  | TRstat
-  | TTwstat
-  | TRwstat
-  deriving (Show, Eq, Ord, Enum)
-
+-- fromNinePFormat1 :: ByteString -> (ByteString, ByteString)
+-- -- fromNinePFormat1 m = undefined
+-- fromNinePFormat1 m = do
+--   case runGetState getMessage m 0 of
+--     -- TODO drop 1 byte and retry OR just drop everything?
+--     Left e -> sendErrorMessage
+--     Right ((rmsgType, tag, msgData), rest) ->
+--       maybe sendErrorMessage f (toEnumMay (fromIntegral rmsgType))
+--       wher f messageType =
+--                 let responseMessageData = processMessage messageType msgData
+--                     responseMessage =
+--                     runPut
+--                         (buildResponseMessage
+--                             (7 + BS.length responseMessageData)
+--                             (succ messageType)
+--                             tag
+--                             responseMessageData)
+--                 in (responseMessage, rest)
+-- -- TODO
+-- sendErrorMessage :: (ByteString, ByteString)
+-- sendErrorMessage = undefined
+-- processMessage :: MT.MessageType -> ByteString -> ByteString
+-- processMessage MT.Tversion _ = undefined
+-- processMessage _ _ = undefined
+-- buildResponseMessage
+--   :: forall a t.
+--      (Serialize t, Integral a)
+--   => a -> MT.MessageType -> Word16 -> t -> PutM ()
+-- buildResponseMessage len msgType tag responseMessageData = do
+--   putWord32le (fromIntegral len)
+--   put msgType
+--   putWord16le tag
+--   put responseMessageData
+-- getMessage :: Get (Word8, Word16, ByteString)
+-- getMessage = do
+--   size <- getWord32le
+--   msgType <- getWord8
+--   tag <- getWord16le
+--   msgData <- getByteString (fromIntegral (size - 7))
+--   return (msgType, tag, msgData)
 --
 -- getTag (Tversion  ) = TTversion
 -- getTag (Rversion  ) = TRversion
