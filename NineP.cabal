@@ -36,9 +36,11 @@ library
                  , protolude
                  , bitmask
                  , cereal
-                 , bimap
     hs-source-dirs:   src
     exposed-modules:  Data.NineP
+                    , Data.NineP.MessageTypes
     extensions: NoImplicitPrelude
+              , OverloadedStrings
+    other-extensions: PatternSynonyms
 
     ghc-options:      -O2 -Wall

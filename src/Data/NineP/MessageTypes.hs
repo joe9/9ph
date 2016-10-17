@@ -1,4 +1,6 @@
 {-# LANGUAGE NoImplicitPrelude #-}
+{-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 -----------------------------------------------------------------------------
 -- |
@@ -25,8 +27,6 @@
 -----------------------------------------------------------------------------
 module Data.NineP.MessageTypes where
 
-import Data.Bimap
-import Data.Maybe
 import Data.Serialize
 import Data.Word
 import Protolude      hiding (get, put)
@@ -35,103 +35,119 @@ import Protolude      hiding (get, put)
 -- | A variable message type that encapsulates the valid kinds of messages in a 9P2000 payload
 -- | A type that enumerates all the valid /(and one invalid)/ message
 -- expand --tabs=4 plan9port/include/fcall.h | sed --expression='1,/enum/d;/};/,$d' --expression="/{/d" --expression="s/= .*,/,/g" --expression="s/,/|/g"
-data TransmitMessageType
-  = Topenfd
-  | Tversion
-  | Tauth
-  | Tattach
-    --  reusing Terror to capture an invalid TransmitMessageType
-  | Terror -- /* illegal */
-  | Tflush
-  | Twalk
-  | Topen
-  | Tcreate
-  | Tread
-  | Twrite
-  | Tclunk
-  | Tremove
-  | Tstat
-  | Twstat
-  deriving (Show, Eq, Ord)
 
---   | Tmax
-toTransmitMessageType :: Word8 -> TransmitMessageType
-toTransmitMessageType = fromMaybe Terror . flip lookup transmitTypes
-
-fromTransmitMessageType :: TransmitMessageType -> Word8
-fromTransmitMessageType = fromMaybe 106 . flip lookupR transmitTypes
+newtype TransmitMessageType = MkTransmitMessageType {unTransmitMessageType :: Word8} deriving (Eq)
 
 instance Serialize TransmitMessageType where
-  get = fmap toTransmitMessageType getWord8
-  put = putWord8 . fromTransmitMessageType
+  get = fmap MkTransmitMessageType getWord8
+  put = putWord8 . unTransmitMessageType
 
-transmitTypes :: Bimap Word8 TransmitMessageType
-transmitTypes =
-  (fromList . fmap swap)
-    [ (Tversion, 100)
-    , (Tauth, 102)
-    , (Tattach, 104)
-      --  reusing Terror to capture an invalid TransmitMessageType
-    , (Terror, 106) -- /* illegal */
-    , (Tflush, 108)
-    , (Twalk, 110)
-    , (Topen, 112)
-    , (Tcreate, 114)
-    , (Tread, 116)
-    , (Twrite, 118)
-    , (Tclunk, 120)
-    , (Tremove, 122)
-    , (Tstat, 124)
-    , (Twstat, 126)
-    , (Topenfd, 98)
-    ]
+pattern Tversion :: TransmitMessageType
+pattern Tversion = MkTransmitMessageType 100
+pattern Tauth :: TransmitMessageType
+pattern Tauth = MkTransmitMessageType 102
+pattern Tattach :: TransmitMessageType
+pattern Tattach = MkTransmitMessageType 104
+--  could reuse Terror to capture an invalid TransmitMessageType
+-- pattern Terror :: TransmitMessageType
+-- pattern Terror = MkTransmitMessageType 106 -- /* illegal */
+pattern Tflush :: TransmitMessageType
+pattern Tflush = MkTransmitMessageType 108
+pattern Twalk :: TransmitMessageType
+pattern Twalk = MkTransmitMessageType 110
+pattern Topen :: TransmitMessageType
+pattern Topen = MkTransmitMessageType 112
+pattern Tcreate :: TransmitMessageType
+pattern Tcreate = MkTransmitMessageType 114
+pattern Tread :: TransmitMessageType
+pattern Tread = MkTransmitMessageType 116
+pattern Twrite :: TransmitMessageType
+pattern Twrite = MkTransmitMessageType 118
+pattern Tclunk :: TransmitMessageType
+pattern Tclunk = MkTransmitMessageType 120
+pattern Tremove :: TransmitMessageType
+pattern Tremove = MkTransmitMessageType 122
+pattern Tstat :: TransmitMessageType
+pattern Tstat = MkTransmitMessageType 124
+pattern Twstat :: TransmitMessageType
+pattern Twstat = MkTransmitMessageType 126
+-- pattern Topenfd :: TransmitMessageType
+-- pattern Topenfd = MkTransmitMessageType 98
 
---   , (Tmax, 128)
-data ResponseMessageType
-  = Ropenfd
-  | Rversion
-  | Rauth
-  | Rattach
-  | Rerror
-  | Rflush
-  | Rwalk
-  | Ropen
-  | Rcreate
-  | Rread
-  | Rwrite
-  | Rclunk
-  | Rremove
-  | Rstat
-  | Rwstat
-  deriving (Show, Eq, Ord)
+-- instance Show TransmitMessageType where
+--   show = showTransmitMessageType
 
---   | Tmax
-responseTypes :: Bimap Word8 ResponseMessageType
-responseTypes =
-  (fromList . fmap swap)
-    [ (Rversion, 101)
-    , (Rauth, 103)
-    , (Rattach, 105)
-    , (Rerror, 107)
-    , (Rflush, 109)
-    , (Rwalk, 111)
-    , (Ropen, 113)
-    , (Rcreate, 115)
-    , (Rread, 117)
-    , (Rwrite, 119)
-    , (Rclunk, 121)
-    , (Rremove, 123)
-    , (Rstat, 125)
-    , (Rwstat, 127)
-    , (Ropenfd, 99)
-    ]
+showTransmitMessageType :: TransmitMessageType -> Text
+-- showTransmitMessageType Topenfd = "Topenfd"
+showTransmitMessageType Tversion = "Tversion"
+showTransmitMessageType Tauth = "Tauth"
+showTransmitMessageType Tattach = "Tattach"
+--  could reuse Terror to capture an invalid TransmitMessageType
+-- showTransmitMessageType Terror = "Terror" -- /* illegal */
+showTransmitMessageType Tflush = "Tflush"
+showTransmitMessageType Twalk = "Twalk"
+showTransmitMessageType Topen = "Topen"
+showTransmitMessageType Tcreate = "Tcreate"
+showTransmitMessageType Tread = "Tread"
+showTransmitMessageType Twrite = "Twrite"
+showTransmitMessageType Tclunk = "Tclunk"
+showTransmitMessageType Tremove = "Tremove"
+showTransmitMessageType Tstat = "Tstat"
+showTransmitMessageType Twstat = "Twstat"
+-- showTransmitMessageType Tmax = "Tmax"
+showTransmitMessageType _ = "unknown"
+
+newtype ResponseMessageType = MkResponseMessageType {unResponseMessageType :: Word8} deriving (Eq)
 
 instance Serialize ResponseMessageType where
-  get = fmap toResponseMessageType getWord8
-  put = putWord8 . fromResponseMessageType
+  get = fmap MkResponseMessageType getWord8
+  put = putWord8 . unResponseMessageType
 
-toResponseMessageType :: Word8 -> ResponseMessageType
-toResponseMessageType = fromMaybe Rerror . flip lookup responseTypes
+pattern Rversion :: ResponseMessageType
+pattern Rversion = MkResponseMessageType 101
+pattern Rauth :: ResponseMessageType
+pattern Rauth = MkResponseMessageType 103
+pattern Rattach :: ResponseMessageType
+pattern Rattach = MkResponseMessageType 105
+pattern Rerror :: ResponseMessageType
+pattern Rerror = MkResponseMessageType 107
+pattern Rflush :: ResponseMessageType
+pattern Rflush = MkResponseMessageType 109
+pattern Rwalk :: ResponseMessageType
+pattern Rwalk = MkResponseMessageType 111
+pattern Ropen :: ResponseMessageType
+pattern Ropen = MkResponseMessageType 113
+pattern Rcreate :: ResponseMessageType
+pattern Rcreate = MkResponseMessageType 115
+pattern Rread :: ResponseMessageType
+pattern Rread = MkResponseMessageType 117
+pattern Rwrite :: ResponseMessageType
+pattern Rwrite = MkResponseMessageType 119
+pattern Rclunk :: ResponseMessageType
+pattern Rclunk = MkResponseMessageType 121
+pattern Rremove :: ResponseMessageType
+pattern Rremove = MkResponseMessageType 123
+pattern Rstat :: ResponseMessageType
+pattern Rstat = MkResponseMessageType 125
+pattern Rwstat :: ResponseMessageType
+pattern Rwstat = MkResponseMessageType 127
+-- pattern Ropenfd :: ResponseMessageType
+-- pattern Ropenfd = MkResponseMessageType 99
 
-fromResponseMessageType :: ResponseMessageType -> Word8
-fromResponseMessageType = fromMaybe 107 . flip lookupR responseTypes
+showResponseMessageType :: ResponseMessageType -> Text
+-- showResponseMessageType Ropenfd = "Ropenfd"
+showResponseMessageType Rversion = "Rversion"
+showResponseMessageType Rauth = "Rauth"
+showResponseMessageType Rattach = "Rattach"
+showResponseMessageType Rerror = "Rerror"
+showResponseMessageType Rflush = "Rflush"
+showResponseMessageType Rwalk = "Rwalk"
+showResponseMessageType Ropen = "Ropen"
+showResponseMessageType Rcreate = "Rcreate"
+showResponseMessageType Rread = "Rread"
+showResponseMessageType Rwrite = "Rwrite"
+showResponseMessageType Rclunk = "Rclunk"
+showResponseMessageType Rremove = "Rremove"
+showResponseMessageType Rstat = "Rstat"
+showResponseMessageType Rwstat = "Rwstat"
+showResponseMessageType _ = "unknown"

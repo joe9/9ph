@@ -37,7 +37,7 @@ import           Protolude       hiding (get, put)
 import BitMask
 
 import           Data.NineP.MessageTypes (ResponseMessageType,
-                                          fromResponseMessageType)
+                                          unResponseMessageType)
 import qualified Data.NineP.MessageTypes as MT
 
 type Offset = Word64
@@ -168,7 +168,7 @@ toNinePByteString
 toNinePByteString rt r tag =
   let message =
         runPut
-          (putWord8 (fromResponseMessageType rt) >> putWord16le tag >> put r)
+          (putWord8 (unResponseMessageType rt) >> putWord16le tag >> put r)
   in runPut
        (putWord32le ((fromIntegral . BS.length) message) >>
         putByteString message)
@@ -176,7 +176,7 @@ toNinePByteString rt r tag =
 toNinePNullDataByteString :: ResponseMessageType -> t -> Tag -> ByteString
 toNinePNullDataByteString rt _ tag =
   runPut
-    (putWord32le 7 >> putWord8 (fromResponseMessageType rt) >> putWord16le tag)
+    (putWord32le 7 >> putWord8 (unResponseMessageType rt) >> putWord16le tag)
 
 putVariableByteString :: ByteString -> PutM ()
 putVariableByteString s =
