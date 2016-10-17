@@ -36,7 +36,39 @@ import           Protolude       hiding (get, put)
 
 import BitMask
 
--- import qualified Data.NineP.MessageTypes as MT
+import           Data.NineP.MessageTypes (ResponseMessageType,
+                                          fromResponseMessageType)
+import qualified Data.NineP.MessageTypes as MT
+
+type Offset = Word64
+
+type Length = Word32
+
+type ResultingData = BS.ByteString
+
+type WriteData = BS.ByteString
+
+type Fid = Word32
+
+type AFid = Word32
+
+type NewFid = Word32
+
+type Permissions = Word32
+
+type Mode = Word8
+
+type UserName = Text
+
+type AccessName = Text
+
+type FileVersion = Word32 -- s for context including user state
+
+type Tag = Word16
+
+class ToNinePFormat a where
+  toNinePFormat :: a -> Tag -> ByteString
+
 -- #define QTDIR		0x80		/* type bit for directories */
 -- #define QTAPPEND	0x40		/* type bit for append only files */
 -- #define QTEXCL		0x20		/* type bit for exclusive use files */
@@ -61,7 +93,7 @@ instance ToBitMask QType
 -- | A Plan 9 Qid type.  See http://9p.cat-v.org for more information
 data Qid = Qid
   { qType    :: ![QType] -- is a Word8 == uchar
-  , qversion :: !Word32
+  , qversion :: !FileVersion
   , qPath    :: !Word64
   } deriving (Show, Eq)
 
@@ -127,6 +159,25 @@ instance Serialize Rversion where
     return (Rversion maxMessageSize version)
   put (Rversion ms v) = putWord32le ms >> putVariableByteString v
 
+instance ToNinePFormat Rversion where
+  toNinePFormat = toNinePByteString MT.Rversion
+
+toNinePByteString
+  :: Serialize a
+  => ResponseMessageType -> a -> Tag -> ByteString
+toNinePByteString rt r tag =
+  let message =
+        runPut
+          (putWord8 (fromResponseMessageType rt) >> putWord16le tag >> put r)
+  in runPut
+       (putWord32le ((fromIntegral . BS.length) message) >>
+        putByteString message)
+
+toNinePNullDataByteString :: ResponseMessageType -> t -> Tag -> ByteString
+toNinePNullDataByteString rt _ tag =
+  runPut
+    (putWord32le 7 >> putWord8 (fromResponseMessageType rt) >> putWord16le tag)
+
 putVariableByteString :: ByteString -> PutM ()
 putVariableByteString s =
   (putWord16le . fromIntegral . BS.length) s >> putByteString s
@@ -175,6 +226,9 @@ instance Serialize Rattach where
   get = fmap Rattach DS.get
   put = DS.put . raQid
 
+instance ToNinePFormat Rattach where
+  toNinePFormat = toNinePByteString MT.Rattach
+
 data Rerror = Rerror
   { reEname :: !ByteString
   }
@@ -183,6 +237,9 @@ data Rerror = Rerror
 instance Serialize Rerror where
   get = fmap Rerror getVariableByteString
   put = putVariableByteString . reEname
+
+instance ToNinePFormat Rerror where
+  toNinePFormat = toNinePByteString MT.Rerror
 
 data Tauth = Tauth
   { tauAfid  :: !Word32
@@ -208,6 +265,9 @@ instance Serialize Rauth where
   get = fmap Rauth DS.get
   put = DS.put . raAqid
 
+instance ToNinePFormat Rauth where
+  toNinePFormat = toNinePByteString MT.Rauth
+
 data Tflush = Tflush
   { tfOldtag :: !Word16
   }
@@ -218,6 +278,12 @@ instance Serialize Tflush where
 
 data Rflush =
   Rflush
+
+-- instance Serialize Rflush where
+--   get = fmap Rflush Get
+--   put Rflush = Put
+instance ToNinePFormat Rflush where
+  toNinePFormat = toNinePNullDataByteString MT.Rflush
 
 data Twalk = Twalk
   { twFid    :: !Word32
@@ -248,6 +314,9 @@ instance Serialize Rwalk where
   put (Rwalk qids) =
     (putWord16le . fromIntegral . length) qids >> mapM_ DS.put qids
 
+instance ToNinePFormat Rwalk where
+  toNinePFormat = toNinePByteString MT.Rwalk
+
 data Topen = Topen
   { toFid  :: !Word32
   , toMode :: !Word8
@@ -265,6 +334,9 @@ data Ropen = Ropen
 instance Serialize Ropen where
   get = fmap Ropen DS.get <*> getWord32le
   put (Ropen q m) = DS.put q >> putWord32le m
+
+instance ToNinePFormat Ropen where
+  toNinePFormat = toNinePByteString MT.Ropen
 
 data Tcreate = Tcreate
   { tcrFid  :: !Word32
@@ -293,6 +365,9 @@ instance Serialize Rcreate where
   get = fmap Rcreate DS.get <*> getWord32le
   put (Rcreate q m) = DS.put q >> putWord32le m
 
+instance ToNinePFormat Rcreate where
+  toNinePFormat = toNinePByteString MT.Rcreate
+
 data Tread = Tread
   { trdFid    :: !Word32
   , trdOffset :: !Word64
@@ -314,6 +389,9 @@ instance Serialize Rread where
     datas <- getByteString (fromIntegral dataCount)
     return (Rread datas)
   put (Rread d) = (putWord32le . fromIntegral . BS.length) d >> putByteString d
+
+instance ToNinePFormat Rread where
+  toNinePFormat = toNinePByteString MT.Rread
 
 data Twrite = Twrite
   { twrFid    :: !Word32
@@ -340,6 +418,9 @@ data Rwrite = Rwrite
 instance Serialize Rwrite where
   get = fmap Rwrite getWord32le
   put = putWord32le . rwCount
+
+instance ToNinePFormat Rwrite where
+  toNinePFormat = toNinePByteString MT.Rwrite
 
 data Tclunk = Tclunk
   { tclFid :: !Word32
@@ -380,6 +461,9 @@ instance Serialize Rstat where
   get = fmap Rstat get
   put = put . rsStat
 
+instance ToNinePFormat Rstat where
+  toNinePFormat = toNinePByteString MT.Rstat
+
 data Twstat = Twstat
   { twsFid  :: !Word32
   , twsStat :: !Stat
@@ -393,47 +477,13 @@ instance Serialize Twstat where
 data Rwstat =
   Rwstat
   deriving (Show, Eq)
--- fromNinePFormat1 :: ByteString -> (ByteString, ByteString)
--- -- fromNinePFormat1 m = undefined
--- fromNinePFormat1 m = do
---   case runGetState getMessage m 0 of
---     -- TODO drop 1 byte and retry OR just drop everything?
---     Left e -> sendErrorMessage
---     Right ((rmsgType, tag, msgData), rest) ->
---       maybe sendErrorMessage f (toEnumMay (fromIntegral rmsgType))
---       wher f messageType =
---                 let responseMessageData = processMessage messageType msgData
---                     responseMessage =
---                     runPut
---                         (buildResponseMessage
---                             (7 + BS.length responseMessageData)
---                             (succ messageType)
---                             tag
---                             responseMessageData)
---                 in (responseMessage, rest)
--- -- TODO
--- sendErrorMessage :: (ByteString, ByteString)
--- sendErrorMessage = undefined
--- processMessage :: MT.MessageType -> ByteString -> ByteString
--- processMessage MT.Tversion _ = undefined
--- processMessage _ _ = undefined
--- buildResponseMessage
---   :: forall a t.
---      (Serialize t, Integral a)
---   => a -> MT.MessageType -> Word16 -> t -> PutM ()
--- buildResponseMessage len msgType tag responseMessageData = do
---   putWord32le (fromIntegral len)
---   put msgType
---   putWord16le tag
---   put responseMessageData
--- getMessage :: Get (Word8, Word16, ByteString)
--- getMessage = do
---   size <- getWord32le
---   msgType <- getWord8
---   tag <- getWord16le
---   msgData <- getByteString (fromIntegral (size - 7))
---   return (msgType, tag, msgData)
---
+
+-- instance Serialize Rwstat where
+--   get = pure Rwstat
+--   put Rwstat = return Put
+instance ToNinePFormat Rwstat where
+  toNinePFormat = toNinePNullDataByteString MT.Rwstat
+  --
 -- getTag (Tversion  ) = TTversion
 -- getTag (Rversion  ) = TRversion
 -- getTag (Tauth   ) = TTauth
