@@ -58,9 +58,9 @@ type Permissions = Word32
 
 type Mode = Word8
 
-type UserName = Text
+type UserName = ByteString
 
-type AccessName = Text
+type AccessName = ByteString
 
 type FileVersion = Word32 -- s for context including user state
 
@@ -123,6 +123,7 @@ data Stat = Stat
 
 instance Serialize Stat where
   get = do
+    size <- getWord16le
     typ <- getWord16le
     dev <- getWord32le
     qid <- get
@@ -136,7 +137,19 @@ instance Serialize Stat where
     muid <- getVariableByteString
     return (Stat typ dev qid mode atime mtime len name uid gid muid)
   put (Stat typ dev qid mode atime mtime len name uid gid muid) =
-    putWord16le typ >> putWord32le dev >> put qid >> putWord32le mode >>
+    (putWord16le . fromIntegral)-- size
+      (2 + -- typ
+       4 + -- dev
+       13 + -- qid
+       4 + -- mode
+       4 + -- atime
+       4 + --  mtime
+       8 + -- len
+       BS.length name + BS.length uid + BS.length gid + BS.length muid) >>
+    putWord16le typ >>
+    putWord32le dev >>
+    put qid >>
+    putWord32le mode >>
     putWord32le atime >>
     putWord32le mtime >>
     putWord64le len >>
@@ -167,8 +180,7 @@ toNinePByteString
   => ResponseMessageType -> a -> Tag -> ByteString
 toNinePByteString rt r tag =
   let message =
-        runPut
-          (putWord8 (unResponseMessageType rt) >> putWord16le tag >> put r)
+        runPut (putWord8 (unResponseMessageType rt) >> putWord16le tag >> put r)
   in runPut
        (putWord32le ((fromIntegral . BS.length) message) >>
         putByteString message)
