@@ -42,7 +42,7 @@ import qualified Data.NineP.MessageTypes as MT
 
 type Offset = Word64
 
-type Length = Word32
+type Count = Word32
 
 type ResultingData = BS.ByteString
 
