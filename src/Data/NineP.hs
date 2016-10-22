@@ -11,7 +11,10 @@ import qualified Data.ByteString as BS
 import           Data.Serialize
 import qualified Data.Serialize  as DS
 import           Data.Word
+import           GHC.Show
+import           Data.String.Conversions
 import           Protolude       hiding (get, put)
+import qualified Test.QuickCheck as QC
 
 import           Data.NineP.MessageTypes (ResponseMessageType,
                                           unResponseMessageType)
@@ -46,9 +49,30 @@ type Tag = Word16
 class ToNinePFormat a where
   toNinePFormat :: a -> Tag -> ByteString
 
+data NineVersion
+  = VerUnknown
+  | Ver9P2000
+  deriving (Eq, Enum, Bounded)
+
+instance Show NineVersion where
+  show = cs . showNineVersion
+
+instance QC.Arbitrary NineVersion where
+  arbitrary = QC.arbitraryBoundedEnum
+
+showNineVersion :: NineVersion -> ByteString
+showNineVersion Ver9P2000  = "9P2000"
+showNineVersion VerUnknown = "unknown"
+
+toNineVersion :: ByteString -> NineVersion
+toNineVersion s =
+  if BS.isPrefixOf "9P2000" s
+    then Ver9P2000
+    else VerUnknown
+
 data Rversion = Rversion
   { rvMaxMessageSize :: !Word32
-  , rvVersion        :: !ByteString
+  , rvVersion        :: !NineVersion
   } deriving (Eq, Show)
 
 -- size[4] Rversion tag[2] msize[4] version[s]
@@ -56,12 +80,19 @@ instance Serialize Rversion where
   get = do
     maxMessageSize <- getWord32le
     size <- getWord16le
-    version <- getByteString (fromIntegral size)
+    version <- (fmap toNineVersion . getByteString . fromIntegral) size
     return (Rversion maxMessageSize version)
-  put (Rversion ms v) = putWord32le ms >> putVariableByteString v
+  put (Rversion ms v) = putWord32le ms >> putVariableByteString (showNineVersion v)
 
 instance ToNinePFormat Rversion where
   toNinePFormat = toNinePByteString MT.Rversion
+
+-- http://stackoverflow.com/a/16440400
+instance QC.Arbitrary Rversion where
+  arbitrary = do
+    s <- QC.arbitrary
+    v <- QC.arbitrary
+    return (Rversion s v)
 
 toNinePByteString
   :: Serialize a
@@ -80,7 +111,7 @@ toNinePNullDataByteString rt _ tag =
 
 data Tversion = Tversion
   { tvMaxMesageSize :: !Word32
-  , tvVersion       :: !ByteString
+  , tvVersion       :: !NineVersion
   } deriving (Eq, Show)
 
 -- size[4] Tversion tag[2] msize[4] version[s]
@@ -88,9 +119,13 @@ instance Serialize Tversion where
   get = do
     maxMessageSize <- getWord32le
     size <- getWord16le
-    version <- getByteString (fromIntegral size)
+    version <- (fmap toNineVersion . getByteString . fromIntegral) size
     return (Tversion maxMessageSize version)
-  put (Tversion s v) = putWord32le s >> putVariableByteString v
+  put (Tversion s v) = putWord32le s >> putVariableByteString (showNineVersion v)
+
+-- http://stackoverflow.com/a/16440400
+instance QC.Arbitrary Tversion where
+  arbitrary = Tversion <$> QC.arbitrary <*> QC.arbitrary
 
 data Tattach = Tattach
   { taFid   :: !Word32
@@ -111,6 +146,15 @@ instance Serialize Tattach where
     putWord32le f >> putWord32le af >> putVariableByteString u >>
     putVariableByteString a
 
+-- instance QC.Arbitrary ByteString where arbitrary = BS.pack <$> QC.arbitrary
+instance QC.Arbitrary Tattach where
+  arbitrary = do
+    fid <- QC.arbitrary
+    afid <- QC.arbitrary
+    uname <- QC.arbitrary
+    aname <- QC.arbitrary
+    return (Tattach fid afid uname aname)
+
 data Rattach = Rattach
   { raQid :: !Qid
   } deriving (Eq, Show)
@@ -121,6 +165,9 @@ instance Serialize Rattach where
 
 instance ToNinePFormat Rattach where
   toNinePFormat = toNinePByteString MT.Rattach
+
+instance QC.Arbitrary Rattach where
+  arbitrary = fmap Rattach QC.arbitrary
 
 data Rerror = Rerror
   { reEname :: !ByteString
@@ -133,6 +180,11 @@ instance Serialize Rerror where
 
 instance ToNinePFormat Rerror where
   toNinePFormat = toNinePByteString MT.Rerror
+
+instance QC.Arbitrary Rerror where
+  arbitrary = do
+    ename <- QC.arbitrary
+    return (Rerror ename)
 
 data Tauth = Tauth
   { tauAfid  :: !Word32
@@ -150,6 +202,13 @@ instance Serialize Tauth where
   put (Tauth af u a) =
     putWord32le af >> putVariableByteString u >> putVariableByteString a
 
+instance QC.Arbitrary Tauth where
+  arbitrary = do
+    auAfid <- QC.arbitrarySizedBoundedIntegral
+    uname <- fmap BS.pack QC.arbitrary
+    aname <-  QC.arbitrary
+    return (Tauth auAfid uname aname)
+
 data Rauth = Rauth
   { raAqid :: !Qid
   } deriving (Eq, Show)
@@ -161,6 +220,9 @@ instance Serialize Rauth where
 instance ToNinePFormat Rauth where
   toNinePFormat = toNinePByteString MT.Rauth
 
+instance QC.Arbitrary Rauth where
+  arbitrary = fmap Rauth QC.arbitrary
+
 data Tflush = Tflush
   { tfOldtag :: !Word16
   } deriving (Eq, Show)
@@ -168,6 +230,11 @@ data Tflush = Tflush
 instance Serialize Tflush where
   get = fmap Tflush getWord16le
   put = putWord16le . tfOldtag
+
+instance QC.Arbitrary Tflush where
+  arbitrary = do
+    ot <- QC.arbitrarySizedBoundedIntegral
+    return (Tflush ot)
 
 data Rflush =
   Rflush deriving (Eq, Show)
@@ -197,18 +264,31 @@ instance Serialize Twalk where
     (putWord16le . fromIntegral . length) names >>
     mapM_ putVariableByteString names
 
+-- instance QC.Arbitrary Twalk where
+--   arbitrary = do
+--     fid <- QC.arbitrarySizedBoundedIntegral
+--     nfid <- QC.arbitrarySizedBoundedIntegral
+--     names <- [BS.pack <$> QC.arbitrary]
+--     return (Twalk fid nfid names)
+
 data Rwalk = Rwalk
   { rwWqid :: ![Qid]
   } deriving (Eq, Show)
 
 --    size[4] Rwalk tag[2] nwqid[2] nwqid*(qid[13])
 instance Serialize Rwalk where
-  get = fmap Rwalk DS.get
+  get = do
+    numberOfQids <- getWord16le
+    qids <- replicateM (fromIntegral numberOfQids) DS.get
+    return (Rwalk qids)
   put (Rwalk qids) =
     (putWord16le . fromIntegral . length) qids >> mapM_ DS.put qids
 
 instance ToNinePFormat Rwalk where
   toNinePFormat = toNinePByteString MT.Rwalk
+
+instance QC.Arbitrary Rwalk where
+  arbitrary = fmap Rwalk QC.arbitrary
 
 data Topen = Topen
   { toFid  :: !Word32
@@ -218,6 +298,12 @@ data Topen = Topen
 instance Serialize Topen where
   get = fmap Topen getWord32le <*> getWord8
   put (Topen f m) = putWord32le f >> putWord8 m
+
+instance QC.Arbitrary Topen where
+  arbitrary = do
+    fid <- QC.arbitrarySizedBoundedIntegral
+    mode <- QC.arbitrarySizedBoundedIntegral
+    return (Topen fid mode)
 
 data Ropen = Ropen
   { roQid    :: !Qid
@@ -230,6 +316,12 @@ instance Serialize Ropen where
 
 instance ToNinePFormat Ropen where
   toNinePFormat = toNinePByteString MT.Ropen
+
+instance QC.Arbitrary Ropen where
+  arbitrary = do
+    fid <- QC.arbitrary
+    mode <- QC.arbitrarySizedBoundedIntegral
+    return (Ropen fid mode)
 
 data Tcreate = Tcreate
   { tcrFid  :: !Word32
@@ -249,6 +341,14 @@ instance Serialize Tcreate where
   put (Tcreate f n p m) =
     putWord32le f >> putVariableByteString n >> putWord32le p >> putWord8 m
 
+instance QC.Arbitrary Tcreate where
+  arbitrary = do
+    fid <- QC.arbitrary
+    name <-  QC.arbitrary
+    perm <- QC.arbitrarySizedBoundedIntegral
+    mode <- QC.arbitrarySizedBoundedIntegral
+    return (Tcreate fid name perm mode)
+
 data Rcreate = Rcreate
   { rcrQid    :: !Qid
   , rcrIounit :: !Word32
@@ -261,6 +361,12 @@ instance Serialize Rcreate where
 instance ToNinePFormat Rcreate where
   toNinePFormat = toNinePByteString MT.Rcreate
 
+instance QC.Arbitrary Rcreate where
+  arbitrary = do
+    qid <- QC.arbitrary
+    iounit <- QC.arbitrarySizedBoundedIntegral
+    return (Rcreate qid iounit)
+
 data Tread = Tread
   { trdFid    :: !Word32
   , trdOffset :: !Word64
@@ -270,6 +376,13 @@ data Tread = Tread
 instance Serialize Tread where
   get = fmap Tread getWord32le <*> getWord64le <*> getWord32le
   put (Tread f o c) = putWord32le f >> putWord64le o >> putWord32le c
+
+instance QC.Arbitrary Tread where
+  arbitrary = do
+    fid <- QC.arbitrarySizedBoundedIntegral
+    offset <- QC.arbitrarySizedBoundedIntegral
+    count <- QC.arbitrarySizedBoundedIntegral
+    return (Tread fid offset count)
 
 data Rread = Rread
   { rrdDat :: !ByteString
@@ -285,6 +398,11 @@ instance Serialize Rread where
 
 instance ToNinePFormat Rread where
   toNinePFormat = toNinePByteString MT.Rread
+
+instance QC.Arbitrary Rread where
+  arbitrary = do
+    dat <-  QC.arbitrary
+    return (Rread dat)
 
 data Twrite = Twrite
   { twrFid    :: !Word32
@@ -304,6 +422,13 @@ instance Serialize Twrite where
     putWord32le f >> putWord64le o >> (putWord32le . fromIntegral . BS.length) d >>
     putByteString d
 
+instance QC.Arbitrary Twrite where
+  arbitrary = do
+    fid <- QC.arbitrarySizedBoundedIntegral
+    offset <- QC.arbitrarySizedBoundedIntegral
+    dat <-  QC.arbitrary
+    return (Twrite fid offset dat)
+
 data Rwrite = Rwrite
   { rwCount :: !Word32
   } deriving (Eq, Show)
@@ -315,6 +440,11 @@ instance Serialize Rwrite where
 instance ToNinePFormat Rwrite where
   toNinePFormat = toNinePByteString MT.Rwrite
 
+instance QC.Arbitrary Rwrite where
+  arbitrary = do
+    count <- QC.arbitrarySizedBoundedIntegral
+    return (Rwrite count)
+
 data Tclunk = Tclunk
   { tclFid :: !Word32
   } deriving (Eq, Show)
@@ -322,6 +452,9 @@ data Tclunk = Tclunk
 instance Serialize Tclunk where
   get = fmap Tclunk getWord32le
   put = putWord32le . tclFid
+
+instance QC.Arbitrary Tclunk where
+  arbitrary = fmap Tclunk QC.arbitrarySizedBoundedIntegral
 
 data Rclunk =
   Rclunk deriving (Eq, Show)
@@ -337,6 +470,9 @@ instance Serialize Tremove where
   get = fmap Tremove getWord32le
   put = putWord32le . trmFid
 
+instance QC.Arbitrary Tremove where
+  arbitrary = fmap Tremove QC.arbitrarySizedBoundedIntegral
+
 data Rremove =
   Rremove deriving (Eq, Show)
 
@@ -351,6 +487,9 @@ instance Serialize Tstat where
   get = fmap Tstat getWord32le
   put = putWord32le . tsFid
 
+instance QC.Arbitrary Tstat where
+  arbitrary = fmap Tstat QC.arbitrarySizedBoundedIntegral
+
 data Rstat = Rstat
   { rsStat :: !Stat
   } deriving (Eq, Show)
@@ -363,6 +502,9 @@ instance Serialize Rstat where
 instance ToNinePFormat Rstat where
   toNinePFormat = toNinePByteString MT.Rstat
 
+instance QC.Arbitrary Rstat where
+  arbitrary = fmap Rstat QC.arbitrary
+
 data Twstat = Twstat
   { twsFid  :: !Word32
   , twsStat :: !Stat
@@ -372,6 +514,12 @@ data Twstat = Twstat
 instance Serialize Twstat where
   get = fmap Twstat getWord32le <*> get
   put (Twstat f s) = putWord32le f >> put s
+
+instance QC.Arbitrary Twstat where
+  arbitrary = do
+    fid <- QC.arbitrarySizedBoundedIntegral
+    stat <- QC.arbitrary
+    return (Twstat fid stat)
 
 data Rwstat =
   Rwstat

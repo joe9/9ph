@@ -10,10 +10,11 @@ import qualified Data.ByteString as BS
 import           Data.Serialize
 import           Data.Word
 import           Protolude       hiding (get, put)
+import qualified Test.QuickCheck as QC
 
 import BitMask
 
-import Data.NineP.QType (Qid)
+import Data.NineP.QType hiding (Directory)
 
 data SType
   = OtherExecutePermission
@@ -25,51 +26,34 @@ data SType
   | UserExecutePermission
   | UserWritePermission
   | UserReadPermission
+  | Unknown9
+  | Unknown10
+  | Unknown11
+  | Unknown12
+  | Unknown13
+  | Unknown14
+  | Unknown15
+  | Unknown16
+  | Unknown17
+  | Unknown18
+  | Unknown19
+  | Unknown20
+  | Unknown21
+  | Unknown22
+  | Unknown23
+  | Unknown24
+  | Unknown25
   | Temp
   | Authentication
+  | Unknown28
   | ExclusiveUse
   | AppendOnly
   | Directory
-  | Unknown
-  deriving (Eq, Show)
-
-instance Bounded SType where
-  minBound = OtherExecutePermission
-  maxBound = Directory
-
-instance Enum SType where
-  toEnum 0  = OtherExecutePermission
-  toEnum 1  = OtherWritePermission
-  toEnum 2  = OtherReadPermission
-  toEnum 3  = GroupExecutePermission
-  toEnum 4  = GroupWritePermission
-  toEnum 5  = GroupReadPermission
-  toEnum 6  = UserExecutePermission
-  toEnum 7  = UserWritePermission
-  toEnum 8  = UserReadPermission
-  toEnum 26 = Temp
-  toEnum 27 = Authentication
-  toEnum 29 = ExclusiveUse
-  toEnum 30 = AppendOnly
-  toEnum 31 = Directory
-  toEnum _  = Unknown
-  fromEnum OtherExecutePermission = 0
-  fromEnum OtherWritePermission   = 1
-  fromEnum OtherReadPermission    = 2
-  fromEnum GroupExecutePermission = 3
-  fromEnum GroupWritePermission   = 4
-  fromEnum GroupReadPermission    = 5
-  fromEnum UserExecutePermission  = 6
-  fromEnum UserWritePermission    = 7
-  fromEnum UserReadPermission     = 8
-  fromEnum Temp                   = 26
-  fromEnum Authentication         = 27
-  fromEnum ExclusiveUse           = 29
-  fromEnum AppendOnly             = 30
-  fromEnum Directory              = 31
-  fromEnum Unknown                = 28
+  deriving (Eq, Show, Bounded, Enum)
 
 instance ToBitMask SType
+instance QC.Arbitrary SType where
+  arbitrary = QC.arbitraryBoundedEnum
 
 -- | Provides information on a path entry at a 9P2000 server
 data Stat = Stat
@@ -84,7 +68,21 @@ data Stat = Stat
   , stUid    :: !ByteString
   , stGid    :: !ByteString
   , stMuid   :: !ByteString
-  } deriving (Show, Eq)
+  } deriving Show
+
+instance Eq Stat where
+  (==) (Stat t1 d1 q1 m1 a1 mt1 l1 n1 u1 g1 mu1) (Stat t2 d2 q2 m2 a2 mt2 l2 n2 u2 g2 mu2)  =
+    t1 == t2
+    && d1 == d2
+    && q1 == q2
+    && toBitMask m1 == toBitMask m2
+    && a1 == a2
+    && mt1 == mt2
+    && l1 == l2
+    && n1 == n2
+    && u1 == u2
+    && g1 == g2
+    && mu1 == mu2
 
 instance Serialize Stat where
   get = do
@@ -132,3 +130,22 @@ putVariableByteString s =
 
 getVariableByteString :: Get ByteString
 getVariableByteString = getWord16le >>= getByteString . fromIntegral >>= return
+
+instance QC.Arbitrary ByteString where
+    arbitrary = BS.pack <$> QC.arbitrary
+
+instance QC.Arbitrary Stat where
+  arbitrary = do
+    t <- QC.arbitrarySizedBoundedIntegral
+    d <- QC.arbitrarySizedBoundedIntegral
+    q <- QC.arbitrary
+    m <- QC.arbitrary
+    a <- QC.arbitrarySizedBoundedIntegral
+    mt <- QC.arbitrarySizedBoundedIntegral
+    l <- QC.arbitrarySizedBoundedIntegral
+    name <- QC.arbitrary
+    uid <- QC.arbitrary
+    gid <- QC.arbitrary
+    muid <- QC.arbitrary
+    return (Stat t d q m a mt l name uid gid muid)
+--     return (Stat 0 0 q [Directory] 0 0 0 "" "" "" "")
