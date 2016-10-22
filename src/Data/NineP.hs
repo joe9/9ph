@@ -1,28 +1,7 @@
 {-# LANGUAGE NoImplicitPrelude #-}
 
------------------------------------------------------------------------------
--- |
--- Module      : Data.NineP
--- Copyright   : Tim Newsham
--- License     : BSD3-style (see LICENSE)
---
--- Maintainer  : David Leimbach <leimy2k@gmail.com>
--- Stability   : experimental
--- Portability : Only tested on GHC 6.12.1, uses TypeSynonymInstances
---
--- Module providing Binary serialization of 9P messages to and from lazy
--- ByteStrings.
---
--- This library does not currently provide any networking support or
--- wrappers for easy to write clients or servers, though that may come
--- with time as we decide the best way to implement these.
---
 -- 9P2000 messages are sent in little endian byte order rather than network byte order
 -- (big endian)
---
--- Lightly tested against an Inferno operating
--- system share with no authentication successfully.
------------------------------------------------------------------------------
 module Data.NineP where
 
 -- * Bin - a little endian encode/decode class for Binary
@@ -34,11 +13,11 @@ import qualified Data.Serialize  as DS
 import           Data.Word
 import           Protolude       hiding (get, put)
 
-import BitMask
-
 import           Data.NineP.MessageTypes (ResponseMessageType,
                                           unResponseMessageType)
 import qualified Data.NineP.MessageTypes as MT
+import           Data.NineP.QType
+import           Data.NineP.Stat
 
 type Offset = Word64
 
@@ -62,101 +41,10 @@ type UserName = ByteString
 
 type AccessName = ByteString
 
-type FileVersion = Word32 -- s for context including user state
-
 type Tag = Word16
 
 class ToNinePFormat a where
   toNinePFormat :: a -> Tag -> ByteString
-
--- #define QTDIR		0x80		/* type bit for directories */
--- #define QTAPPEND	0x40		/* type bit for append only files */
--- #define QTEXCL		0x20		/* type bit for exclusive use files */
--- #define QTMOUNT		0x10		/* type bit for mounted channel */
--- #define QTAUTH		0x08		/* type bit for authentication file */
--- #define QTTMP		0x04		/* type bit for non-backed-up file */
--- #define QTSYMLINK	0x02		/* type bit for symbolic link */
--- #define QTFILE		0x00		/* type bits for plain file */
-data QType
-  = File
-  | SymbolicLink
-  | NonBackedUpFile
-  | AuthenticationFile
-  | MountedChannel
-  | ExclusiveUseFile
-  | AppendOnlyFile
-  | Directory
-  deriving (Bounded, Enum, Eq, Show)
-
-instance ToBitMask QType
-
--- | A Plan 9 Qid type.  See http://9p.cat-v.org for more information
-data Qid = Qid
-  { qType    :: ![QType] -- is a Word8 == uchar
-  , qversion :: !FileVersion
-  , qPath    :: !Word64
-  } deriving (Show, Eq)
-
-instance Serialize Qid where
-  get =
-    fmap (Qid . fromBitMask . fromIntegral) getWord8 <*> getWord32le <*>
-    getWord64le
-  put (Qid t v p) =
-    (putWord8 . (fromIntegral :: Word32 -> Word8) . toBitMask) t >>
-    putWord32le v >>
-    putWord64le p
-
--- | Provides information on a path entry at a 9P2000 server
-data Stat = Stat
-  { stTyp    :: !Word16
-  , stDev    :: !Word32
-  , stQid    :: !Qid
-  , stMode   :: !Word32
-  , stAtime  :: !Word32
-  , stMtime  :: !Word32
-  , stLength :: !Word64
-  , stName   :: !ByteString
-  , stUid    :: !ByteString
-  , stGid    :: !ByteString
-  , stMuid   :: !ByteString
-  } deriving (Show, Eq)
-
-instance Serialize Stat where
-  get = do
-    size <- getWord16le
-    typ <- getWord16le
-    dev <- getWord32le
-    qid <- get
-    mode <- getWord32le
-    atime <- getWord32le
-    mtime <- getWord32le
-    len <- getWord64le
-    name <- getVariableByteString
-    uid <- getVariableByteString
-    gid <- getVariableByteString
-    muid <- getVariableByteString
-    return (Stat typ dev qid mode atime mtime len name uid gid muid)
-  put (Stat typ dev qid mode atime mtime len name uid gid muid) =
-    (putWord16le . fromIntegral)-- size
-      (2 + -- typ
-       4 + -- dev
-       13 + -- qid
-       4 + -- mode
-       4 + -- atime
-       4 + --  mtime
-       8 + -- len
-       BS.length name + BS.length uid + BS.length gid + BS.length muid) >>
-    putWord16le typ >>
-    putWord32le dev >>
-    put qid >>
-    putWord32le mode >>
-    putWord32le atime >>
-    putWord32le mtime >>
-    putWord64le len >>
-    putVariableByteString name >>
-    putVariableByteString uid >>
-    putVariableByteString gid >>
-    putVariableByteString muid
 
 data Rversion = Rversion
   { rvMaxMessageSize :: Word32
@@ -189,13 +77,6 @@ toNinePNullDataByteString :: ResponseMessageType -> t -> Tag -> ByteString
 toNinePNullDataByteString rt _ tag =
   runPut
     (putWord32le 7 >> putWord8 (unResponseMessageType rt) >> putWord16le tag)
-
-putVariableByteString :: ByteString -> PutM ()
-putVariableByteString s =
-  (putWord16le . fromIntegral . BS.length) s >> putByteString s
-
-getVariableByteString :: Get ByteString
-getVariableByteString = getWord16le >>= getByteString . fromIntegral >>= return
 
 data Tversion = Tversion
   { tvMaxMesageSize :: !Word32
