@@ -47,9 +47,9 @@ class ToNinePFormat a where
   toNinePFormat :: a -> Tag -> ByteString
 
 data Rversion = Rversion
-  { rvMaxMessageSize :: Word32
+  { rvMaxMessageSize :: !Word32
   , rvVersion        :: !ByteString
-  }
+  } deriving (Eq, Show)
 
 -- size[4] Rversion tag[2] msize[4] version[s]
 instance Serialize Rversion where
@@ -70,7 +70,7 @@ toNinePByteString rt r tag =
   let message =
         runPut (putWord8 (unResponseMessageType rt) >> putWord16le tag >> put r)
   in runPut
-       (putWord32le ((fromIntegral . BS.length) message) >>
+       (putWord32le (fromIntegral (BS.length message + 4)) >>
         putByteString message)
 
 toNinePNullDataByteString :: ResponseMessageType -> t -> Tag -> ByteString
@@ -81,7 +81,7 @@ toNinePNullDataByteString rt _ tag =
 data Tversion = Tversion
   { tvMaxMesageSize :: !Word32
   , tvVersion       :: !ByteString
-  }
+  } deriving (Eq, Show)
 
 -- size[4] Tversion tag[2] msize[4] version[s]
 instance Serialize Tversion where
@@ -97,7 +97,7 @@ data Tattach = Tattach
   , taAfid  :: !Word32
   , taUname :: !ByteString
   , taAname :: !ByteString
-  }
+  } deriving (Eq, Show)
 
 -- size[4] Tattach tag[2] fid[4] afid[4] uname[s] aname[s]
 instance Serialize Tattach where
@@ -113,7 +113,7 @@ instance Serialize Tattach where
 
 data Rattach = Rattach
   { raQid :: !Qid
-  }
+  } deriving (Eq, Show)
 
 instance Serialize Rattach where
   get = fmap Rattach DS.get
@@ -124,7 +124,7 @@ instance ToNinePFormat Rattach where
 
 data Rerror = Rerror
   { reEname :: !ByteString
-  }
+  } deriving (Eq, Show)
 
 -- size[4] Rerror tag[2] ename[s]
 instance Serialize Rerror where
@@ -138,7 +138,7 @@ data Tauth = Tauth
   { tauAfid  :: !Word32
   , tauUname :: !ByteString
   , tauAname :: !ByteString
-  }
+  } deriving (Eq, Show)
 
 -- size[4] Tauth tag[2] afid[4] uname[s] aname[s]
 instance Serialize Tauth where
@@ -152,7 +152,7 @@ instance Serialize Tauth where
 
 data Rauth = Rauth
   { raAqid :: !Qid
-  }
+  } deriving (Eq, Show)
 
 instance Serialize Rauth where
   get = fmap Rauth DS.get
@@ -163,14 +163,14 @@ instance ToNinePFormat Rauth where
 
 data Tflush = Tflush
   { tfOldtag :: !Word16
-  }
+  } deriving (Eq, Show)
 
 instance Serialize Tflush where
   get = fmap Tflush getWord16le
   put = putWord16le . tfOldtag
 
 data Rflush =
-  Rflush
+  Rflush deriving (Eq, Show)
 
 -- instance Serialize Rflush where
 --   get = fmap Rflush Get
@@ -182,7 +182,7 @@ data Twalk = Twalk
   { twFid    :: !Word32
   , twNewfid :: !Word32
   , twWnames :: ![ByteString]
-  }
+  } deriving (Eq, Show)
 
 --   size[4] Twalk tag[2] fid[4] newfid[4] nwname[2] nwname*(wname[s])
 instance Serialize Twalk where
@@ -199,7 +199,7 @@ instance Serialize Twalk where
 
 data Rwalk = Rwalk
   { rwWqid :: ![Qid]
-  }
+  } deriving (Eq, Show)
 
 --    size[4] Rwalk tag[2] nwqid[2] nwqid*(qid[13])
 instance Serialize Rwalk where
@@ -213,7 +213,7 @@ instance ToNinePFormat Rwalk where
 data Topen = Topen
   { toFid  :: !Word32
   , toMode :: !Word8
-  }
+  } deriving (Eq, Show)
 
 instance Serialize Topen where
   get = fmap Topen getWord32le <*> getWord8
@@ -222,7 +222,7 @@ instance Serialize Topen where
 data Ropen = Ropen
   { roQid    :: !Qid
   , roIounit :: !Word32
-  }
+  } deriving (Eq, Show)
 
 instance Serialize Ropen where
   get = fmap Ropen DS.get <*> getWord32le
@@ -236,7 +236,7 @@ data Tcreate = Tcreate
   , tcrName :: !ByteString
   , tcrPerm :: !Word32
   , tcrMode :: !Word8
-  }
+  } deriving (Eq, Show)
 
 -- size[4] Tcreate tag[2] fid[4] name[s] perm[4] mode[1]
 instance Serialize Tcreate where
@@ -252,7 +252,7 @@ instance Serialize Tcreate where
 data Rcreate = Rcreate
   { rcrQid    :: !Qid
   , rcrIounit :: !Word32
-  }
+  } deriving (Eq, Show)
 
 instance Serialize Rcreate where
   get = fmap Rcreate DS.get <*> getWord32le
@@ -265,7 +265,7 @@ data Tread = Tread
   { trdFid    :: !Word32
   , trdOffset :: !Word64
   , trdCount  :: !Word32
-  }
+  } deriving (Eq, Show)
 
 instance Serialize Tread where
   get = fmap Tread getWord32le <*> getWord64le <*> getWord32le
@@ -273,7 +273,7 @@ instance Serialize Tread where
 
 data Rread = Rread
   { rrdDat :: !ByteString
-  }
+  } deriving (Eq, Show)
 
 --    size[4] Rread tag[2] count[4] data[count]
 instance Serialize Rread where
@@ -290,7 +290,7 @@ data Twrite = Twrite
   { twrFid    :: !Word32
   , twrOffset :: !Word64
   , twrDat    :: !ByteString
-  }
+  } deriving (Eq, Show)
 
 -- size[4] Twrite tag[2] fid[4] offset[8] count[4] data[count]
 instance Serialize Twrite where
@@ -306,7 +306,7 @@ instance Serialize Twrite where
 
 data Rwrite = Rwrite
   { rwCount :: !Word32
-  }
+  } deriving (Eq, Show)
 
 instance Serialize Rwrite where
   get = fmap Rwrite getWord32le
@@ -317,35 +317,35 @@ instance ToNinePFormat Rwrite where
 
 data Tclunk = Tclunk
   { tclFid :: !Word32
-  }
+  } deriving (Eq, Show)
 
 instance Serialize Tclunk where
   get = fmap Tclunk getWord32le
   put = putWord32le . tclFid
 
 data Rclunk =
-  Rclunk
+  Rclunk deriving (Eq, Show)
 
 instance ToNinePFormat Rclunk where
   toNinePFormat = toNinePNullDataByteString MT.Rclunk
 
 data Tremove = Tremove
   { trmFid :: !Word32
-  }
+  } deriving (Eq, Show)
 
 instance Serialize Tremove where
   get = fmap Tremove getWord32le
   put = putWord32le . trmFid
 
 data Rremove =
-  Rremove
+  Rremove deriving (Eq, Show)
 
 instance ToNinePFormat Rremove where
   toNinePFormat = toNinePNullDataByteString MT.Rremove
 
 data Tstat = Tstat
   { tsFid :: !Word32
-  }
+  } deriving (Eq, Show)
 
 instance Serialize Tstat where
   get = fmap Tstat getWord32le
@@ -353,7 +353,7 @@ instance Serialize Tstat where
 
 data Rstat = Rstat
   { rsStat :: !Stat
-  }
+  } deriving (Eq, Show)
 
 --    size[4] Rstat tag[2] stat[n]
 instance Serialize Rstat where
@@ -366,7 +366,7 @@ instance ToNinePFormat Rstat where
 data Twstat = Twstat
   { twsFid  :: !Word32
   , twsStat :: !Stat
-  }
+  } deriving (Eq, Show)
 
 --    size[4] Rstat tag[2] stat[n]
 instance Serialize Twstat where
