@@ -39,14 +39,15 @@ instance ToBitMask QType
 data Qid = Qid
   { qType    :: ![QType] -- is a Word8 == uchar
   , qversion :: !FileVersion
-  , qPath    :: !Word64
+  -- using Int instead of Word64 to avoid using fromIntegral all the time
+  , qPath    :: !Int -- !Word64
   } deriving (Show, Eq)
 
 instance Serialize Qid where
   get =
     fmap (Qid . fromBitMask . fromIntegral) getWord8 <*> getWord32le <*>
-    getWord64le
+    fmap fromIntegral getWord64le
   put (Qid t v p) =
     (putWord8 . (fromIntegral :: Word32 -> Word8) . toBitMask) t >>
     putWord32le v >>
-    putWord64le p
+    putWord64le (fromIntegral p)
