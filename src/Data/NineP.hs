@@ -498,10 +498,18 @@ data Rstat = Rstat
   { rsStat :: !Stat
   } deriving (Eq, Show)
 
+-- The notation parameter[n] where n is not a constant represents a
+-- variable-length parameter: n[2] followed by n bytes of data forming
+-- the parameter.
 --    size[4] Rstat tag[2] stat[n]
 instance Serialize Rstat where
-  get = fmap Rstat get
-  put = put . rsStat
+  get
+  -- ignoring this size as it is not needed to parse Stat
+   = do
+    _ <- getWord16le
+    stats <- get
+    return (Rstat stats)
+  put = putVariableByteString . runPut . put . rsStat
 
 instance ToNinePFormat Rstat where
   toNinePFormat = toNinePByteString MT.Rstat
@@ -514,10 +522,17 @@ data Twstat = Twstat
   , twsStat :: !Stat
   } deriving (Eq, Show)
 
---    size[4] Rstat tag[2] stat[n]
+-- The notation parameter[n] where n is not a constant represents a
+-- variable-length parameter: n[2] followed by n bytes of data forming
+-- the parameter.
+-- size[4] Twstat tag[2] fid[4] stat[n]
 instance Serialize Twstat where
-  get = fmap Twstat getWord32le <*> get
-  put (Twstat f s) = putWord32le f >> put s
+  get = do
+    fid <- getWord32le
+    _ <- getWord16le -- count or n bytes used by stat[n]
+    stat <- get
+    return (Twstat fid stat)
+  put (Twstat f s) = putWord32le f >> (putVariableByteString . runPut . put) s
 
 instance QC.Arbitrary Twstat where
   arbitrary = do
