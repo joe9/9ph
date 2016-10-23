@@ -6,15 +6,15 @@ module Data.NineP where
 
 -- * Bin - a little endian encode/decode class for Binary
 import           Control.Monad
-import           Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
+import           Data.ByteString         (ByteString)
+import qualified Data.ByteString         as BS
 import           Data.Serialize
-import qualified Data.Serialize  as DS
+import qualified Data.Serialize          as DS
+import           Data.String.Conversions
 import           Data.Word
 import           GHC.Show
-import           Data.String.Conversions
-import           Protolude       hiding (get, put)
-import qualified Test.QuickCheck as QC
+import           Protolude               hiding (get, put)
+import qualified Test.QuickCheck         as QC
 
 import           Data.NineP.MessageTypes (ResponseMessageType,
                                           unResponseMessageType)
@@ -82,7 +82,8 @@ instance Serialize Rversion where
     size <- getWord16le
     version <- (fmap toNineVersion . getByteString . fromIntegral) size
     return (Rversion maxMessageSize version)
-  put (Rversion ms v) = putWord32le ms >> putVariableByteString (showNineVersion v)
+  put (Rversion ms v) =
+    putWord32le ms >> putVariableByteString (showNineVersion v)
 
 instance ToNinePFormat Rversion where
   toNinePFormat = toNinePByteString MT.Rversion
@@ -121,7 +122,8 @@ instance Serialize Tversion where
     size <- getWord16le
     version <- (fmap toNineVersion . getByteString . fromIntegral) size
     return (Tversion maxMessageSize version)
-  put (Tversion s v) = putWord32le s >> putVariableByteString (showNineVersion v)
+  put (Tversion s v) =
+    putWord32le s >> putVariableByteString (showNineVersion v)
 
 -- http://stackoverflow.com/a/16440400
 instance QC.Arbitrary Tversion where
@@ -206,7 +208,7 @@ instance QC.Arbitrary Tauth where
   arbitrary = do
     auAfid <- QC.arbitrarySizedBoundedIntegral
     uname <- fmap BS.pack QC.arbitrary
-    aname <-  QC.arbitrary
+    aname <- QC.arbitrary
     return (Tauth auAfid uname aname)
 
 data Rauth = Rauth
@@ -237,7 +239,8 @@ instance QC.Arbitrary Tflush where
     return (Tflush ot)
 
 data Rflush =
-  Rflush deriving (Eq, Show)
+  Rflush
+  deriving (Eq, Show)
 
 -- instance Serialize Rflush where
 --   get = fmap Rflush Get
@@ -270,7 +273,6 @@ instance Serialize Twalk where
 --     nfid <- QC.arbitrarySizedBoundedIntegral
 --     names <- [BS.pack <$> QC.arbitrary]
 --     return (Twalk fid nfid names)
-
 data Rwalk = Rwalk
   { rwWqid :: ![Qid]
   } deriving (Eq, Show)
@@ -344,7 +346,7 @@ instance Serialize Tcreate where
 instance QC.Arbitrary Tcreate where
   arbitrary = do
     fid <- QC.arbitrary
-    name <-  QC.arbitrary
+    name <- QC.arbitrary
     perm <- QC.arbitrarySizedBoundedIntegral
     mode <- QC.arbitrarySizedBoundedIntegral
     return (Tcreate fid name perm mode)
@@ -401,7 +403,7 @@ instance ToNinePFormat Rread where
 
 instance QC.Arbitrary Rread where
   arbitrary = do
-    dat <-  QC.arbitrary
+    dat <- QC.arbitrary
     return (Rread dat)
 
 data Twrite = Twrite
@@ -426,7 +428,7 @@ instance QC.Arbitrary Twrite where
   arbitrary = do
     fid <- QC.arbitrarySizedBoundedIntegral
     offset <- QC.arbitrarySizedBoundedIntegral
-    dat <-  QC.arbitrary
+    dat <- QC.arbitrary
     return (Twrite fid offset dat)
 
 data Rwrite = Rwrite
@@ -457,7 +459,8 @@ instance QC.Arbitrary Tclunk where
   arbitrary = fmap Tclunk QC.arbitrarySizedBoundedIntegral
 
 data Rclunk =
-  Rclunk deriving (Eq, Show)
+  Rclunk
+  deriving (Eq, Show)
 
 instance ToNinePFormat Rclunk where
   toNinePFormat = toNinePNullDataByteString MT.Rclunk
@@ -474,7 +477,8 @@ instance QC.Arbitrary Tremove where
   arbitrary = fmap Tremove QC.arbitrarySizedBoundedIntegral
 
 data Rremove =
-  Rremove deriving (Eq, Show)
+  Rremove
+  deriving (Eq, Show)
 
 instance ToNinePFormat Rremove where
   toNinePFormat = toNinePNullDataByteString MT.Rremove
