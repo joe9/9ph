@@ -38,8 +38,6 @@ type NewFid = Word32
 
 type Permissions = Word32
 
-type Mode = Word8
-
 type UserName = ByteString
 
 type AccessName = ByteString
@@ -292,19 +290,28 @@ instance ToNinePFormat Rwalk where
 instance QC.Arbitrary Rwalk where
   arbitrary = fmap Rwalk QC.arbitrary
 
+data OpenMode = Read | Write | ReadWrite | Executable deriving (Eq, Show, Enum, Bounded)
+
+instance Serialize OpenMode where
+  get = fmap (toEnum . fromIntegral) getWord8
+  put = putWord8 . (fromIntegral . fromEnum)
+
+instance QC.Arbitrary OpenMode where
+  arbitrary = QC.arbitraryBoundedEnum
+
 data Topen = Topen
   { toFid  :: !Word32
-  , toMode :: !Word8
+  , toMode :: !OpenMode
   } deriving (Eq, Show)
 
 instance Serialize Topen where
-  get = fmap Topen getWord32le <*> getWord8
-  put (Topen f m) = putWord32le f >> putWord8 m
+  get = fmap Topen getWord32le <*> DS.get
+  put (Topen f m) = putWord32le f >> DS.put m
 
 instance QC.Arbitrary Topen where
   arbitrary = do
     fid <- QC.arbitrarySizedBoundedIntegral
-    mode <- QC.arbitrarySizedBoundedIntegral
+    mode <- QC.arbitrary
     return (Topen fid mode)
 
 data Ropen = Ropen
@@ -329,7 +336,7 @@ data Tcreate = Tcreate
   { tcrFid  :: !Word32
   , tcrName :: !ByteString
   , tcrPerm :: !Word32
-  , tcrMode :: !Word8
+  , tcrMode :: !OpenMode
   } deriving (Eq, Show)
 
 -- size[4] Tcreate tag[2] fid[4] name[s] perm[4] mode[1]
@@ -338,17 +345,17 @@ instance Serialize Tcreate where
     fid <- getWord32le
     name <- getVariableByteString
     perm <- getWord32le
-    mode <- getWord8
+    mode <- DS.get
     return (Tcreate fid name perm mode)
   put (Tcreate f n p m) =
-    putWord32le f >> putVariableByteString n >> putWord32le p >> putWord8 m
+    putWord32le f >> putVariableByteString n >> putWord32le p >> put m
 
 instance QC.Arbitrary Tcreate where
   arbitrary = do
     fid <- QC.arbitrary
     name <- QC.arbitrary
     perm <- QC.arbitrarySizedBoundedIntegral
-    mode <- QC.arbitrarySizedBoundedIntegral
+    mode <- QC.arbitrary
     return (Tcreate fid name perm mode)
 
 data Rcreate = Rcreate
