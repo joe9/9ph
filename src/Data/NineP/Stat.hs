@@ -14,7 +14,7 @@ import qualified Test.QuickCheck as QC
 
 import BitMask
 
-import Data.NineP.QType hiding (Directory)
+import Data.NineP.Qid hiding (Directory)
 
 data SType
   = OtherExecutePermission

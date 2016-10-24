@@ -19,7 +19,7 @@ import qualified Test.QuickCheck         as QC
 import           Data.NineP.MessageTypes (ResponseMessageType,
                                           unResponseMessageType)
 import qualified Data.NineP.MessageTypes as MT
-import           Data.NineP.QType
+import           Data.NineP.Qid
 import           Data.NineP.Stat
 
 type Offset = Word64

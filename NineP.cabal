@@ -42,7 +42,7 @@ library
     hs-source-dirs:   src
     exposed-modules:  Data.NineP
                     , Data.NineP.MessageTypes
-                    , Data.NineP.QType
+                    , Data.NineP.Qid
                     , Data.NineP.Stat
     extensions: NoImplicitPrelude
               , OverloadedStrings

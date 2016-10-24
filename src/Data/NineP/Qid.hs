@@ -2,7 +2,7 @@
 
 -- 9P2000 messages are sent in little endian byte order rather than network byte order
 -- (big endian)
-module Data.NineP.QType where
+module Data.NineP.Qid where
 
 -- * Bin - a little endian encode/decode class for Binary
 import           Control.Monad
