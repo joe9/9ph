@@ -108,9 +108,13 @@ instance Serialize Stat where
        4 + -- atime
        4 + --  mtime
        8 + -- len
+       2 + -- storing the length of name
        BS.length name +
+       2 + -- storing the length of uid
        BS.length uid +
+       2 + -- storing the length of gid
        BS.length gid +
+       2 + -- storing the length of muid
        BS.length muid) >>
     putWord16le typ >>
     putWord32le dev >>

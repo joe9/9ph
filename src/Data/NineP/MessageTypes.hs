@@ -43,34 +43,34 @@ instance Serialize TransmitMessageType where
   put = putWord8 . unTransmitMessageType
 
 pattern Tversion :: TransmitMessageType
-pattern Tversion = MkTransmitMessageType 100
+pattern Tversion = MkTransmitMessageType 0x64 -- 100
 pattern Tauth :: TransmitMessageType
-pattern Tauth = MkTransmitMessageType 102
+pattern Tauth = MkTransmitMessageType 0x66 -- 102
 pattern Tattach :: TransmitMessageType
-pattern Tattach = MkTransmitMessageType 104
+pattern Tattach = MkTransmitMessageType 0x68 -- 104
 --  could reuse Terror to capture an invalid TransmitMessageType
 -- pattern Terror :: TransmitMessageType
 -- pattern Terror = MkTransmitMessageType 106 -- /* illegal */
 pattern Tflush :: TransmitMessageType
-pattern Tflush = MkTransmitMessageType 108
+pattern Tflush = MkTransmitMessageType 0x6c -- 108
 pattern Twalk :: TransmitMessageType
-pattern Twalk = MkTransmitMessageType 110
+pattern Twalk = MkTransmitMessageType 0x6e -- 110
 pattern Topen :: TransmitMessageType
-pattern Topen = MkTransmitMessageType 112
+pattern Topen = MkTransmitMessageType 0x70 -- 112
 pattern Tcreate :: TransmitMessageType
-pattern Tcreate = MkTransmitMessageType 114
+pattern Tcreate = MkTransmitMessageType 0x72 -- 114
 pattern Tread :: TransmitMessageType
-pattern Tread = MkTransmitMessageType 116
+pattern Tread = MkTransmitMessageType 0x74 -- 116
 pattern Twrite :: TransmitMessageType
-pattern Twrite = MkTransmitMessageType 118
+pattern Twrite = MkTransmitMessageType 0x76 -- 118
 pattern Tclunk :: TransmitMessageType
-pattern Tclunk = MkTransmitMessageType 120
+pattern Tclunk = MkTransmitMessageType 0x78 -- 120
 pattern Tremove :: TransmitMessageType
-pattern Tremove = MkTransmitMessageType 122
+pattern Tremove = MkTransmitMessageType 0x7a -- 122
 pattern Tstat :: TransmitMessageType
-pattern Tstat = MkTransmitMessageType 124
+pattern Tstat = MkTransmitMessageType 0x7c -- 124
 pattern Twstat :: TransmitMessageType
-pattern Twstat = MkTransmitMessageType 126
+pattern Twstat = MkTransmitMessageType 0x7e -- 126
 -- pattern Topenfd :: TransmitMessageType
 -- pattern Topenfd = MkTransmitMessageType 98
 
@@ -104,33 +104,33 @@ instance Serialize ResponseMessageType where
   put = putWord8 . unResponseMessageType
 
 pattern Rversion :: ResponseMessageType
-pattern Rversion = MkResponseMessageType 101
+pattern Rversion = MkResponseMessageType 0x65 -- 101
 pattern Rauth :: ResponseMessageType
-pattern Rauth = MkResponseMessageType 103
+pattern Rauth = MkResponseMessageType 0x67 -- 103
 pattern Rattach :: ResponseMessageType
-pattern Rattach = MkResponseMessageType 105
+pattern Rattach = MkResponseMessageType 0x69 -- 105
 pattern Rerror :: ResponseMessageType
-pattern Rerror = MkResponseMessageType 107
+pattern Rerror = MkResponseMessageType 0x6b -- 107
 pattern Rflush :: ResponseMessageType
-pattern Rflush = MkResponseMessageType 109
+pattern Rflush = MkResponseMessageType 0x6d -- 109
 pattern Rwalk :: ResponseMessageType
-pattern Rwalk = MkResponseMessageType 111
+pattern Rwalk = MkResponseMessageType 0x6f -- 111
 pattern Ropen :: ResponseMessageType
-pattern Ropen = MkResponseMessageType 113
+pattern Ropen = MkResponseMessageType 0x71 -- 113
 pattern Rcreate :: ResponseMessageType
-pattern Rcreate = MkResponseMessageType 115
+pattern Rcreate = MkResponseMessageType 0x73 -- 115
 pattern Rread :: ResponseMessageType
-pattern Rread = MkResponseMessageType 117
+pattern Rread = MkResponseMessageType 0x75 -- 117
 pattern Rwrite :: ResponseMessageType
-pattern Rwrite = MkResponseMessageType 119
+pattern Rwrite = MkResponseMessageType 0x77 -- 119
 pattern Rclunk :: ResponseMessageType
-pattern Rclunk = MkResponseMessageType 121
+pattern Rclunk = MkResponseMessageType 0x79 -- 121
 pattern Rremove :: ResponseMessageType
-pattern Rremove = MkResponseMessageType 123
+pattern Rremove = MkResponseMessageType 0x7b -- 123
 pattern Rstat :: ResponseMessageType
-pattern Rstat = MkResponseMessageType 125
+pattern Rstat = MkResponseMessageType 0x7d -- 125
 pattern Rwstat :: ResponseMessageType
-pattern Rwstat = MkResponseMessageType 127
+pattern Rwstat = MkResponseMessageType 0x7f -- 127
 -- pattern Ropenfd :: ResponseMessageType
 -- pattern Ropenfd = MkResponseMessageType 99
 

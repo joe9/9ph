@@ -17,6 +17,19 @@ import BitMask
 
 type FileVersion = Word32 -- s for context including user state
 
+-- <zhasha> bit 0 doesn't say anything about it being a file
+-- <zhasha> it's a file if QTDIR isn't set
+-- <zhasha> QTFILE is just a #define to make your intention clear  [10:50]
+-- <joe9> " The name QTFILE, defined to be zero, identifies the value of the type for a plain file. " -- last line of http://man2.aiju.de/5/0intro  [10:51]
+-- <zhasha> so when does zero become one?
+-- <zhasha> it's not the zero'th bit. it's the number zero  [10:52]
+-- <zhasha> as in qid.type == 0 means it's a regular plain file with no special anything
+-- <joe9> ok, Thanks.  [10:53]
+-- <zhasha> QTFILE exists so you can write in your program that qid->type = QTFILE instead of qid->type = 0, which is a tad more readable  [10:55]
+-- <joe9> I thought the values were bit masks. such as having QTTMP | QTSYMLINK  [10:56]
+-- <joe9> I did not realize that they were just values and not bit positions used to calculate the value.  [10:57]
+-- <zhasha> They are for OR'ing together
+-- <zhasha> but take a stab at what happens when you OR with 0
 -- #define QTDIR		0x80		/* type bit for directories */
 -- #define QTAPPEND	0x40		/* type bit for append only files */
 -- #define QTEXCL		0x20		/* type bit for exclusive use files */
@@ -26,13 +39,13 @@ type FileVersion = Word32 -- s for context including user state
 -- #define QTSYMLINK	0x02		/* type bit for symbolic link */
 -- #define QTFILE		0x00		/* type bits for plain file */
 data QType
-  = File
-  | SymbolicLink
-  | NonBackedUpFile
-  | AuthenticationFile
-  | MountedChannel
-  | ExclusiveUseFile
-  | AppendOnlyFile
+  = Unknown0 -- File
+  | Unknown1 -- SymbolicLink not in 9P2000
+  | NonBackedUp
+  | Authentication
+  | Unknown4 -- MountedChannel not specified in the manual
+  | ExclusiveUse
+  | AppendOnly
   | Directory
   deriving (Bounded, Enum, Eq, Show)
 

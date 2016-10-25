@@ -290,7 +290,12 @@ instance ToNinePFormat Rwalk where
 instance QC.Arbitrary Rwalk where
   arbitrary = fmap Rwalk QC.arbitrary
 
-data OpenMode = Read | Write | ReadWrite | Executable deriving (Eq, Show, Enum, Bounded)
+data OpenMode
+  = Read
+  | Write
+  | ReadWrite
+  | Executable
+  deriving (Eq, Show, Enum, Bounded)
 
 instance Serialize OpenMode where
   get = fmap (toEnum . fromIntegral) getWord8
