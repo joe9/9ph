@@ -175,6 +175,9 @@ instance QC.Arbitrary Tattach where
     aname <- QC.arbitrary
     return (Tattach fid afid uname aname)
 
+instance ToNinePFormat Tattach where
+  toNinePFormat = toNinePByteStringT MT.Tattach
+
 data Rattach = Rattach
   { raQid :: !Qid
   } deriving (Eq, Show)
@@ -291,6 +294,10 @@ instance Serialize Twalk where
 --     nfid <- QC.arbitrarySizedBoundedIntegral
 --     names <- [BS.pack <$> QC.arbitrary]
 --     return (Twalk fid nfid names)
+
+instance ToNinePFormat Twalk where
+  toNinePFormat = toNinePByteStringT MT.Twalk
+
 data Rwalk = Rwalk
   { rwWqid :: ![Qid]
   } deriving (Eq, Show)
@@ -490,9 +497,16 @@ instance Serialize Tclunk where
 instance QC.Arbitrary Tclunk where
   arbitrary = fmap Tclunk QC.arbitrarySizedBoundedIntegral
 
+instance ToNinePFormat Tclunk where
+  toNinePFormat = toNinePByteStringT MT.Tclunk
+
 data Rclunk =
   Rclunk
   deriving (Eq, Show)
+
+-- instance Serialize Rclunk where
+--   get = mempty
+--   put = mempty
 
 instance ToNinePFormat Rclunk where
   toNinePFormat = toNinePNullDataByteString MT.Rclunk
@@ -525,6 +539,9 @@ instance Serialize Tstat where
 
 instance QC.Arbitrary Tstat where
   arbitrary = fmap Tstat QC.arbitrarySizedBoundedIntegral
+
+instance ToNinePFormat Tstat where
+  toNinePFormat = toNinePByteStringT MT.Tstat
 
 data Rstat = Rstat
   { rsStat :: !Stat
