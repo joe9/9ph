@@ -17,8 +17,9 @@ import           Protolude               hiding (get, put)
 import qualified Test.QuickCheck         as QC
 
 import           Data.NineP.MessageTypes (ResponseMessageType,
+                                          TransmitMessageType,
                                           unResponseMessageType,
-                                          TransmitMessageType, unTransmitMessageType)
+                                          unTransmitMessageType)
 import qualified Data.NineP.MessageTypes as MT
 import           Data.NineP.Qid
 import           Data.NineP.Stat
