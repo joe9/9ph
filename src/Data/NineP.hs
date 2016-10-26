@@ -17,7 +17,8 @@ import           Protolude               hiding (get, put)
 import qualified Test.QuickCheck         as QC
 
 import           Data.NineP.MessageTypes (ResponseMessageType,
-                                          unResponseMessageType)
+                                          unResponseMessageType,
+                                          TransmitMessageType, unTransmitMessageType)
 import qualified Data.NineP.MessageTypes as MT
 import           Data.NineP.Qid
 import           Data.NineP.Stat
@@ -108,6 +109,21 @@ toNinePNullDataByteString rt _ tag =
   runPut
     (putWord32le 7 >> putWord8 (unResponseMessageType rt) >> putWord16le tag)
 
+toNinePByteStringT
+  :: Serialize a
+  => TransmitMessageType -> a -> Tag -> ByteString
+toNinePByteStringT rt r tag =
+  let message =
+        runPut (putWord8 (unTransmitMessageType rt) >> putWord16le tag >> put r)
+  in runPut
+       (putWord32le (fromIntegral (BS.length message + 4)) >>
+        putByteString message)
+
+toNinePNullDataByteStringT :: TransmitMessageType -> t -> Tag -> ByteString
+toNinePNullDataByteStringT rt _ tag =
+  runPut
+    (putWord32le 7 >> putWord8 (unTransmitMessageType rt) >> putWord16le tag)
+
 data Tversion = Tversion
   { tvMaxMesageSize :: !Word32
   , tvVersion       :: !NineVersion
@@ -126,6 +142,9 @@ instance Serialize Tversion where
 -- http://stackoverflow.com/a/16440400
 instance QC.Arbitrary Tversion where
   arbitrary = Tversion <$> QC.arbitrary <*> QC.arbitrary
+
+instance ToNinePFormat Tversion where
+  toNinePFormat = toNinePByteStringT MT.Tversion
 
 data Tattach = Tattach
   { taFid   :: !Word32
