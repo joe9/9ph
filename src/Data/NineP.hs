@@ -346,6 +346,9 @@ instance QC.Arbitrary Topen where
     mode <- QC.arbitrary
     return (Topen fid mode)
 
+instance ToNinePFormat Topen where
+  toNinePFormat = toNinePByteStringT MT.Topen
+
 data Ropen = Ropen
   { roQid    :: !Qid
   , roIounit :: !Word32
@@ -425,6 +428,9 @@ instance QC.Arbitrary Tread where
     count <- QC.arbitrarySizedBoundedIntegral
     return (Tread fid offset count)
 
+instance ToNinePFormat Tread where
+  toNinePFormat = toNinePByteStringT MT.Tread
+
 data Rread = Rread
   { rrdDat :: !ByteString
   } deriving (Eq, Show)
@@ -470,6 +476,9 @@ instance QC.Arbitrary Twrite where
     dat <- QC.arbitrary
     return (Twrite fid offset dat)
 
+instance ToNinePFormat Twrite where
+  toNinePFormat = toNinePByteStringT MT.Twrite
+
 data Rwrite = Rwrite
   { rwCount :: !Word32
   } deriving (Eq, Show)
@@ -500,13 +509,11 @@ instance QC.Arbitrary Tclunk where
 instance ToNinePFormat Tclunk where
   toNinePFormat = toNinePByteStringT MT.Tclunk
 
-data Rclunk =
-  Rclunk
-  deriving (Eq, Show)
+data Rclunk = Rclunk deriving (Eq, Show)
 
--- instance Serialize Rclunk where
---   get = mempty
---   put = mempty
+instance Serialize Rclunk where
+  get = return Rclunk
+  put _ = return ()
 
 instance ToNinePFormat Rclunk where
   toNinePFormat = toNinePNullDataByteString MT.Rclunk
