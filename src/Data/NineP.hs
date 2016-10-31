@@ -23,6 +23,7 @@ import           Data.NineP.MessageTypes (ResponseMessageType,
 import qualified Data.NineP.MessageTypes as MT
 import           Data.NineP.Qid
 import           Data.NineP.Stat
+import           Data.NineP.OpenMode
 
 type Offset = Word64
 
@@ -316,20 +317,6 @@ instance ToNinePFormat Rwalk where
 
 instance QC.Arbitrary Rwalk where
   arbitrary = fmap Rwalk QC.arbitrary
-
-data OpenMode
-  = Read
-  | Write
-  | ReadWrite
-  | Executable
-  deriving (Eq, Show, Enum, Bounded)
-
-instance Serialize OpenMode where
-  get = fmap (toEnum . fromIntegral) getWord8
-  put = putWord8 . (fromIntegral . fromEnum)
-
-instance QC.Arbitrary OpenMode where
-  arbitrary = QC.arbitraryBoundedEnum
 
 data Topen = Topen
   { toFid  :: !Word32

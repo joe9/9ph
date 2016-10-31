@@ -44,6 +44,7 @@ library
                     , Data.NineP.MessageTypes
                     , Data.NineP.Qid
                     , Data.NineP.Stat
+                    , Data.NineP.OpenMode
     extensions: NoImplicitPrelude
               , OverloadedStrings
     other-extensions: PatternSynonyms
