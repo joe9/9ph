@@ -6,12 +6,12 @@ module Data.NineP.Qid where
 
 -- * Bin - a little endian encode/decode class for Binary
 import           Control.Monad
+import qualified Data.ByteString.Builder as BSB
+import qualified Data.ByteString.Lazy    as BL
 import           Data.Serialize
 import           Data.Word
-import           qualified Data.ByteString.Builder as BSB
-import qualified Data.ByteString.Lazy as BL
-import           Protolude       hiding (get, put)
-import qualified Test.QuickCheck as QC
+import           Protolude               hiding (get, put)
+import qualified Test.QuickCheck         as QC
 
 import BitMask
 
@@ -23,7 +23,7 @@ type FileVersion = Word32 -- s for context including user state
 -- <joe9> " The name QTFILE, defined to be zero, identifies the value of the type for a plain file. " -- last line of http://man2.aiju.de/5/0intro  [10:51]
 -- <zhasha> so when does zero become one?
 -- <zhasha> it's not the zero'th bit. it's the number zero  [10:52]
--- <zhasha> as in qid.type == 0 means it's a regular plain file with no special anything
+-- <zhasha> as in qid.type = 0 means it's a regular plain file with no special anything
 -- <joe9> ok, Thanks.  [10:53]
 -- <zhasha> QTFILE exists so you can write in your program that qid->type = QTFILE instead of qid->type = 0, which is a tad more readable  [10:55]
 -- <joe9> I thought the values were bit masks. such as having QTTMP | QTSYMLINK  [10:56]
@@ -56,15 +56,17 @@ instance QC.Arbitrary QType where
 
 -- | A Plan 9 Qid type.  See http://9p.cat-v.org for more information
 data Qid = Qid
-  { qType    :: ![QType] -- is a Word8 == uchar
+  { qType    :: ![QType] -- is a Word8 = uchar
   , qversion :: !FileVersion
-  -- using Int instead of Word64 to avoid using fromIntegral all the time
+    -- using Int instead of Word64 to avoid using fromIntegral all the time
   , qPath    :: !Int -- !Word64
-  } deriving Show
+  } deriving (Show)
 
 instance Eq Qid where
-  (==) (Qid t1 v1 p1) (Qid t2 v2 p2) =
-    ((fromIntegral :: Word32 -> Word8) . toBitMask) t1 == ((fromIntegral :: Word32 -> Word8) . toBitMask) t2 && v1 == v2 && p1 == p2
+  (Qid t1 v1 p1) == (Qid t2 v2 p2) =
+    ((fromIntegral :: Word32 -> Word8) . toBitMask) t1 ==
+    ((fromIntegral :: Word32 -> Word8) . toBitMask) t2 &&
+    v1 == v2 && p1 == p2
 
 instance Serialize Qid where
   get =

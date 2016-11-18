@@ -52,6 +52,7 @@ data SType
   deriving (Eq, Show, Bounded, Enum)
 
 instance ToBitMask SType
+
 instance QC.Arbitrary SType where
   arbitrary = QC.arbitraryBoundedEnum
 
@@ -68,21 +69,16 @@ data Stat = Stat
   , stUid    :: !ByteString
   , stGid    :: !ByteString
   , stMuid   :: !ByteString
-  } deriving Show
+  } deriving (Show)
 
 instance Eq Stat where
-  (==) (Stat t1 d1 q1 m1 a1 mt1 l1 n1 u1 g1 mu1) (Stat t2 d2 q2 m2 a2 mt2 l2 n2 u2 g2 mu2)  =
-    t1 == t2
-    && d1 == d2
-    && q1 == q2
-    && toBitMask m1 == toBitMask m2
-    && a1 == a2
-    && mt1 == mt2
-    && l1 == l2
-    && n1 == n2
-    && u1 == u2
-    && g1 == g2
-    && mu1 == mu2
+  (Stat t1 d1 q1 m1 a1 mt1 l1 n1 u1 g1 mu1) == (Stat t2 d2 q2 m2 a2 mt2 l2 n2 u2 g2 mu2) =
+    t1 == t2 &&
+    d1 == d2 &&
+    q1 == q2 &&
+    toBitMask m1 == toBitMask m2 &&
+    a1 == a2 &&
+    mt1 == mt2 && l1 == l2 && n1 == n2 && u1 == u2 && g1 == g2 && mu1 == mu2
 
 instance Serialize Stat where
   get = do
@@ -136,7 +132,7 @@ getVariableByteString :: Get ByteString
 getVariableByteString = getWord16le >>= getByteString . fromIntegral >>= return
 
 instance QC.Arbitrary ByteString where
-    arbitrary = BS.pack <$> QC.arbitrary
+  arbitrary = BS.pack <$> QC.arbitrary
 
 instance QC.Arbitrary Stat where
   arbitrary = do

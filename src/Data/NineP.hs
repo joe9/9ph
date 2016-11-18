@@ -21,9 +21,9 @@ import           Data.NineP.MessageTypes (ResponseMessageType,
                                           unResponseMessageType,
                                           unTransmitMessageType)
 import qualified Data.NineP.MessageTypes as MT
+import           Data.NineP.OpenMode
 import           Data.NineP.Qid
 import           Data.NineP.Stat
-import           Data.NineP.OpenMode
 
 type Offset = Word64
 
@@ -295,7 +295,6 @@ instance Serialize Twalk where
 --     nfid <- QC.arbitrarySizedBoundedIntegral
 --     names <- [BS.pack <$> QC.arbitrary]
 --     return (Twalk fid nfid names)
-
 instance ToNinePFormat Twalk where
   toNinePFormat = toNinePByteStringT MT.Twalk
 
@@ -496,7 +495,9 @@ instance QC.Arbitrary Tclunk where
 instance ToNinePFormat Tclunk where
   toNinePFormat = toNinePByteStringT MT.Tclunk
 
-data Rclunk = Rclunk deriving (Eq, Show)
+data Rclunk =
+  Rclunk
+  deriving (Eq, Show)
 
 instance Serialize Rclunk where
   get = return Rclunk
@@ -593,146 +594,146 @@ data Rwstat =
 instance ToNinePFormat Rwstat where
   toNinePFormat = toNinePNullDataByteString MT.Rwstat
   --
--- getTag (Tversion  ) = TTversion
--- getTag (Rversion  ) = TRversion
--- getTag (Tauth   ) = TTauth
--- getTag (Rauth ) = TRauth
--- getTag (Tflush ) = TTflush
--- getTag (Rflush) = TRflush
--- getTag (Tattach    ) = TTattach
--- getTag (Rattach ) = TRattach
--- getTag (Rerror ) = TRerror
--- getTag (Twalk   ) = TTwalk
--- getTag (Rwalk ) = TRwalk
--- getTag (Topen  ) = TTopen
--- getTag (Ropen  ) = TRopen
--- getTag (Tcreate    ) = TTcreate
--- getTag (Rcreate  ) = TRcreate
--- getTag (Tread   ) = TTread
--- getTag (Rread ) = TRread
--- getTag (Twrite   ) = TTwrite
--- getTag (Rwrite ) = TRwrite
--- getTag (Tclunk ) = TTclunk
--- getTag (Rclunk) = TRclunk
--- getTag (Tremove ) = TTremove
--- getTag (Rremove) = TRremove
--- getTag (Tstat ) = TTstat
--- getTag (Rstat ) = TRstat
--- getTag (Twstat  ) = TTwstat
--- getTag (Rwstat) = TRwstat
--- -- | For every messages type, runs a Get parser to decode that type of payload from the 9P2000 stream
--- getVarMsg :: !Tag -> Get VarMsg
--- getVarMsg = undefined
--- getVarMsg TTversion = Tversion <$> get <*> get
--- -- getVarMsg TRversion = Rversion <$> get <*> get
--- getVarMsg TTauth = Tauth <$> get <*> get <*> get
--- getVarMsg TRauth = Rauth <$> get
--- getVarMsg XXXTTerror = error "there is no Terror"
--- getVarMsg TRerror = Rerror <$> get
--- getVarMsg TTflush = Tflush <$> get
--- getVarMsg TRflush = return Rflush
--- getVarMsg TTattach = Tattach <$> get <*> get <*> get <*> get
--- getVarMsg TRattach = Rattach <$> get
--- getVarMsg TTwalk = Twalk <$> get <*> get <*> getList16
--- getVarMsg TRwalk = Rwalk <$> getList16
--- getVarMsg TTopen = Topen <$> get <*> get
--- getVarMsg TRopen = Ropen <$> get <*> get
--- getVarMsg TTcreate = Tcreate <$> get <*> get <*> get <*> get
--- getVarMsg TRcreate = Rcreate <$> get <*> get
--- getVarMsg TTread = Tread <$> get <*> get <*> get
--- getVarMsg TRread = Rread <$> getBytes32
--- getVarMsg TTwrite = Twrite <$> get <*> get <*> getBytes32
--- getVarMsg TRwrite = Rwrite <$> get
--- getVarMsg TTclunk = Tclunk <$> get
--- getVarMsg TRclunk = return Rclunk
--- getVarMsg TTremove = Tremove <$> get
--- getVarMsg TRremove = return Rremove
--- getVarMsg TTstat = Tstat <$> get
--- getVarMsg TRstat = Rstat <$> getNestList16
--- getVarMsg TTwstat = Twstat <$> get <*> getNestList16
--- getVarMsg TRwstat = return Rwstat
--- -- | For every lower level VarMsg type, encodes a full wrapper around that type for use with 9P2000 streams
--- putVarMsg :: !VarMsg -> Put
--- putVarMsg = undefined
--- putVarMsg (Tversion a b) = put a >> put b
--- -- putVarMsg (Rversion a b) = put a >> put b
--- putVarMsg (Tauth a b c) = put a >> put b >> put c
--- putVarMsg (Rauth a) = put a
--- putVarMsg (Rerror a) = put a
--- putVarMsg (Tflush a) = put a
--- putVarMsg (Rflush) = return ()
--- putVarMsg (Tattach a b c d) = put a >> put b >> put c >> put d
--- putVarMsg (Rattach a) = put a
--- putVarMsg (Twalk a b c) = put a >> put b >> putList16 c
--- putVarMsg (Rwalk a) = putList16 a
--- putVarMsg (Topen a b) = put a >> put b
--- putVarMsg (Ropen a b) = put a >> put b
--- putVarMsg (Tcreate a b c d) = put a >> put b >> put c >> put d
--- putVarMsg (Rcreate a b) = put a >> put b
--- putVarMsg (Tread a b c) = put a >> put b >> put c
--- putVarMsg (Rread a) = putBytes32 a
--- putVarMsg (Twrite a b c) = put a >> put b >> putBytes32 c
--- putVarMsg (Rwrite a) = put a
--- putVarMsg (Tclunk a) = put a
--- putVarMsg (Rclunk) = return ()
--- putVarMsg (Tremove a) = put a
--- putVarMsg (Rremove) = return ()
--- putVarMsg (Tstat a) = put a
--- putVarMsg (Rstat a) = putNestList16 a
--- putVarMsg (Twstat a b) = put a >> putNestList16 b
--- putVarMsg (Rwstat) = return ()
---
--- --------------------------------------------------------------------
--- $example
---
--- Exchanging initial version data with any 9P2000 server
---
--- > module Main where
---
--- > import Data.Maybe
--- > import Control.Monad
--- > import qualified Data.ByteString.Lazy.Char8 as C
--- > import Network.Socket hiding (send, recv)
--- > import Network.Socket.ByteString.Lazy
--- > import Data.Int
--- > import Data.Binary.Get
--- > import Data.Binary.Put
--- > import Debug.Trace
--- > import Data.NineP
--- >
--- > connector :: !IO Socket
--- > connector = withSocketsDo $
--- >             do
--- >               ainfo <- getAddrInfo Nothing (Just "127.0.0.1") (Just "6872")
--- >               let a = head ainfo
--- >               sock <- socket AFINET Stream defaultProtocol
---
--- At this point we've just created our socket to a machine on 127.0.0.1:6872
--- where we'd expect to see a 9P2000 server.
---
--- >               putStrLn "Trying to connect"
--- >               connect sock (addrAddress (traceShow a a))
--- >               putStrLn "connected!"
---
--- The socket is connected at this point, build up a TVersion message, asking
--- to speak to the server with the 9P2000 protocol.
---
--- The 1024 tells the server the maximum message size we'd like to support.
---
--- >               let version = Msg TTversion (-1) $ Tversion 1024 "9P2000"
--- >               putStrLn $ "About to send: " ++ show version
---
--- We now need to pack the message into a bytestring.  This is handled by the
--- Bin class instance /Msg/, and the serialization is handled by runPut.
--- We send this data to the socket.
---
--- >               send sock $ runPut (put version)
--- >               putStrLn "Getting response"
---
--- Now wait for a response from the server, evaluated runGet over it to
--- de-serialize it, and show it.
---
--- >               msg <- recv sock 50
--- >               let response = runGet get msg ::Msg
--- >               putStrLn $ show response
+  -- getTag (Tversion  ) = TTversion
+  -- getTag (Rversion  ) = TRversion
+  -- getTag (Tauth   ) = TTauth
+  -- getTag (Rauth ) = TRauth
+  -- getTag (Tflush ) = TTflush
+  -- getTag (Rflush) = TRflush
+  -- getTag (Tattach    ) = TTattach
+  -- getTag (Rattach ) = TRattach
+  -- getTag (Rerror ) = TRerror
+  -- getTag (Twalk   ) = TTwalk
+  -- getTag (Rwalk ) = TRwalk
+  -- getTag (Topen  ) = TTopen
+  -- getTag (Ropen  ) = TRopen
+  -- getTag (Tcreate    ) = TTcreate
+  -- getTag (Rcreate  ) = TRcreate
+  -- getTag (Tread   ) = TTread
+  -- getTag (Rread ) = TRread
+  -- getTag (Twrite   ) = TTwrite
+  -- getTag (Rwrite ) = TRwrite
+  -- getTag (Tclunk ) = TTclunk
+  -- getTag (Rclunk) = TRclunk
+  -- getTag (Tremove ) = TTremove
+  -- getTag (Rremove) = TRremove
+  -- getTag (Tstat ) = TTstat
+  -- getTag (Rstat ) = TRstat
+  -- getTag (Twstat  ) = TTwstat
+  -- getTag (Rwstat) = TRwstat
+  -- -- | For every messages type, runs a Get parser to decode that type of payload from the 9P2000 stream
+  -- getVarMsg :: !Tag -> Get VarMsg
+  -- getVarMsg = undefined
+  -- getVarMsg TTversion = Tversion <$> get <*> get
+  -- -- getVarMsg TRversion = Rversion <$> get <*> get
+  -- getVarMsg TTauth = Tauth <$> get <*> get <*> get
+  -- getVarMsg TRauth = Rauth <$> get
+  -- getVarMsg XXXTTerror = error "there is no Terror"
+  -- getVarMsg TRerror = Rerror <$> get
+  -- getVarMsg TTflush = Tflush <$> get
+  -- getVarMsg TRflush = return Rflush
+  -- getVarMsg TTattach = Tattach <$> get <*> get <*> get <*> get
+  -- getVarMsg TRattach = Rattach <$> get
+  -- getVarMsg TTwalk = Twalk <$> get <*> get <*> getList16
+  -- getVarMsg TRwalk = Rwalk <$> getList16
+  -- getVarMsg TTopen = Topen <$> get <*> get
+  -- getVarMsg TRopen = Ropen <$> get <*> get
+  -- getVarMsg TTcreate = Tcreate <$> get <*> get <*> get <*> get
+  -- getVarMsg TRcreate = Rcreate <$> get <*> get
+  -- getVarMsg TTread = Tread <$> get <*> get <*> get
+  -- getVarMsg TRread = Rread <$> getBytes32
+  -- getVarMsg TTwrite = Twrite <$> get <*> get <*> getBytes32
+  -- getVarMsg TRwrite = Rwrite <$> get
+  -- getVarMsg TTclunk = Tclunk <$> get
+  -- getVarMsg TRclunk = return Rclunk
+  -- getVarMsg TTremove = Tremove <$> get
+  -- getVarMsg TRremove = return Rremove
+  -- getVarMsg TTstat = Tstat <$> get
+  -- getVarMsg TRstat = Rstat <$> getNestList16
+  -- getVarMsg TTwstat = Twstat <$> get <*> getNestList16
+  -- getVarMsg TRwstat = return Rwstat
+  -- -- | For every lower level VarMsg type, encodes a full wrapper around that type for use with 9P2000 streams
+  -- putVarMsg :: !VarMsg -> Put
+  -- putVarMsg = undefined
+  -- putVarMsg (Tversion a b) = put a >> put b
+  -- -- putVarMsg (Rversion a b) = put a >> put b
+  -- putVarMsg (Tauth a b c) = put a >> put b >> put c
+  -- putVarMsg (Rauth a) = put a
+  -- putVarMsg (Rerror a) = put a
+  -- putVarMsg (Tflush a) = put a
+  -- putVarMsg (Rflush) = return ()
+  -- putVarMsg (Tattach a b c d) = put a >> put b >> put c >> put d
+  -- putVarMsg (Rattach a) = put a
+  -- putVarMsg (Twalk a b c) = put a >> put b >> putList16 c
+  -- putVarMsg (Rwalk a) = putList16 a
+  -- putVarMsg (Topen a b) = put a >> put b
+  -- putVarMsg (Ropen a b) = put a >> put b
+  -- putVarMsg (Tcreate a b c d) = put a >> put b >> put c >> put d
+  -- putVarMsg (Rcreate a b) = put a >> put b
+  -- putVarMsg (Tread a b c) = put a >> put b >> put c
+  -- putVarMsg (Rread a) = putBytes32 a
+  -- putVarMsg (Twrite a b c) = put a >> put b >> putBytes32 c
+  -- putVarMsg (Rwrite a) = put a
+  -- putVarMsg (Tclunk a) = put a
+  -- putVarMsg (Rclunk) = return ()
+  -- putVarMsg (Tremove a) = put a
+  -- putVarMsg (Rremove) = return ()
+  -- putVarMsg (Tstat a) = put a
+  -- putVarMsg (Rstat a) = putNestList16 a
+  -- putVarMsg (Twstat a b) = put a >> putNestList16 b
+  -- putVarMsg (Rwstat) = return ()
+  --
+  -- --------------------------------------------------------------------
+  -- $example
+  --
+  -- Exchanging initial version data with any 9P2000 server
+  --
+  -- > module Main where
+  --
+  -- > import Data.Maybe
+  -- > import Control.Monad
+  -- > import qualified Data.ByteString.Lazy.Char8 as C
+  -- > import Network.Socket hiding (send, recv)
+  -- > import Network.Socket.ByteString.Lazy
+  -- > import Data.Int
+  -- > import Data.Binary.Get
+  -- > import Data.Binary.Put
+  -- > import Debug.Trace
+  -- > import Data.NineP
+  -- >
+  -- > connector :: !IO Socket
+  -- > connector = withSocketsDo $
+  -- >             do
+  -- >               ainfo <- getAddrInfo Nothing (Just "127.0.0.1") (Just "6872")
+  -- >               let a = head ainfo
+  -- >               sock <- socket AFINET Stream defaultProtocol
+  --
+  -- At this point we've just created our socket to a machine on 127.0.0.1:6872
+  -- where we'd expect to see a 9P2000 server.
+  --
+  -- >               putStrLn "Trying to connect"
+  -- >               connect sock (addrAddress (traceShow a a))
+  -- >               putStrLn "connected!"
+  --
+  -- The socket is connected at this point, build up a TVersion message, asking
+  -- to speak to the server with the 9P2000 protocol.
+  --
+  -- The 1024 tells the server the maximum message size we'd like to support.
+  --
+  -- >               let version = Msg TTversion (-1) $ Tversion 1024 "9P2000"
+  -- >               putStrLn $ "About to send: " ++ show version
+  --
+  -- We now need to pack the message into a bytestring.  This is handled by the
+  -- Bin class instance /Msg/, and the serialization is handled by runPut.
+  -- We send this data to the socket.
+  --
+  -- >               send sock $ runPut (put version)
+  -- >               putStrLn "Getting response"
+  --
+  -- Now wait for a response from the server, evaluated runGet over it to
+  -- de-serialize it, and show it.
+  --
+  -- >               msg <- recv sock 50
+  -- >               let response = runGet get msg ::Msg
+  -- >               putStrLn $ show response
 -- >               return sock

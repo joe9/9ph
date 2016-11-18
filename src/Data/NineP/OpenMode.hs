@@ -5,8 +5,8 @@
 module Data.NineP.OpenMode where
 
 import           Control.Monad
-import           Data.Serialize
 import           Data.Bits
+import           Data.Serialize
 import           Protolude       hiding (get, put)
 import qualified Test.QuickCheck as QC
 
