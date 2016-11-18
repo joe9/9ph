@@ -1,3 +1,4 @@
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
 -- 9P2000 messages are sent in little endian byte order rather than network byte order
@@ -53,6 +54,7 @@ data SType
 
 instance ToBitMask SType
 
+-- for quickcheck
 instance QC.Arbitrary SType where
   arbitrary = QC.arbitraryBoundedEnum
 
