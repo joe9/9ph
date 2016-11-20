@@ -1,4 +1,6 @@
 {-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# LANGUAGE DeriveAnyClass    #-}
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
 -- 9P2000 messages are sent in little endian byte order rather than network byte order
@@ -6,12 +8,13 @@
 module Data.NineP.Stat where
 
 import           Control.Monad
-import           Data.ByteString (ByteString)
-import qualified Data.ByteString as BS
+import           Data.ByteString                (ByteString)
+import qualified Data.ByteString                as BS
 import           Data.Serialize
 import           Data.Word
-import           Protolude       hiding (get, put)
-import qualified Test.QuickCheck as QC
+import           Protolude                      hiding (get, put)
+import qualified Test.QuickCheck                as QC
+import           Text.PrettyPrint.GenericPretty
 
 import BitMask
 
@@ -50,7 +53,7 @@ data SType
   | ExclusiveUse
   | AppendOnly
   | Directory
-  deriving (Eq, Show, Bounded, Enum)
+  deriving (Eq, Show, Generic, Pretty, Bounded, Enum)
 
 instance ToBitMask SType
 
@@ -71,7 +74,7 @@ data Stat = Stat
   , stUid    :: !ByteString
   , stGid    :: !ByteString
   , stMuid   :: !ByteString
-  } deriving (Show)
+  } deriving (Show, Generic, Pretty)
 
 instance Eq Stat where
   (Stat t1 d1 q1 m1 a1 mt1 l1 n1 u1 g1 mu1) == (Stat t2 d2 q2 m2 a2 mt2 l2 n2 u2 g2 mu2) =

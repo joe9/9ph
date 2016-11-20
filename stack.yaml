@@ -4,7 +4,7 @@ packages:
 - '.'
 - location: /home/j/dev/apps/haskell/libraries/11-bitmask
   extra-dep: true
-extra-deps:
-- NineP-0.0.2.4
-- generic-random-0.3.0.0
+- location: /home/j/dev/apps/haskell/libraries/12-GenericPretty
+  extra-dep: true
+extra-deps: []
 resolver: nightly-2016-10-14

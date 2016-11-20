@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveAnyClass    #-}
+{-# LANGUAGE DeriveGeneric     #-}
 {-# LANGUAGE NoImplicitPrelude #-}
 
 -- 9P2000 messages are sent in little endian byte order rather than network byte order
@@ -6,12 +8,13 @@ module Data.NineP.Qid where
 
 -- * Bin - a little endian encode/decode class for Binary
 import           Control.Monad
-import qualified Data.ByteString.Builder as BSB
-import qualified Data.ByteString.Lazy    as BL
+import qualified Data.ByteString.Builder        as BSB
+import qualified Data.ByteString.Lazy           as BL
 import           Data.Serialize
 import           Data.Word
-import           Protolude               hiding (get, put)
-import qualified Test.QuickCheck         as QC
+import           Protolude                      hiding (get, put)
+import qualified Test.QuickCheck                as QC
+import           Text.PrettyPrint.GenericPretty
 
 import BitMask
 
@@ -47,7 +50,7 @@ data QType
   | ExclusiveUse
   | AppendOnly
   | Directory
-  deriving (Bounded, Enum, Eq, Show)
+  deriving (Bounded, Enum, Eq, Show, Generic, Pretty)
 
 instance ToBitMask QType
 
@@ -60,7 +63,7 @@ data Qid = Qid
   , qversion :: !FileVersion
     -- using Int instead of Word64 to avoid using fromIntegral all the time
   , qPath    :: !Int -- !Word64
-  } deriving (Show)
+  } deriving (Show, Generic, Pretty)
 
 instance Eq Qid where
   (Qid t1 v1 p1) == (Qid t2 v2 p2) =

@@ -39,6 +39,7 @@ library
                  , cereal
                  , string-conversions
                  , QuickCheck
+                 , GenericPretty
     hs-source-dirs:   src
     exposed-modules:  Data.NineP
                     , Data.NineP.MessageTypes
